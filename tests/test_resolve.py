@@ -132,7 +132,6 @@ def test__resolve_identifier(monkeypatch: pytest.MonkeyPatch) -> None:
         m.setattr(Path, "exists", lambda _: False)
         config = Configuration()
         config.resolve_adsurl = False
-        config.limit_authors = True
         config.limit_authors = 2
 
     # Case 1: Successfully resolve an arXiv identifier
