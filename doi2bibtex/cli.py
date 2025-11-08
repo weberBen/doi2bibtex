@@ -17,6 +17,7 @@ from rich.syntax import Syntax
 from doi2bibtex import __version__
 from doi2bibtex.config import Configuration
 from doi2bibtex.resolve import resolve_identifier
+from doi2bibtex.interactive import interactive_mode
 
 
 # -----------------------------------------------------------------------------
@@ -102,6 +103,11 @@ def main() -> None:  # pragma: no cover
     # Print the version number and exit if requested
     if args.version:
         print(__version__)
+        sys.exit(0)
+
+    # If no identifier is provided, enter interactive mode
+    if args.identifier is None:
+        interactive_mode(config=config)
         sys.exit(0)
 
     # Either print the result as plain text, or make it fancy
