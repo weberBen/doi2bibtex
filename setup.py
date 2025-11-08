@@ -46,6 +46,9 @@ setup(
         "requests",
         "rich",
         "unidecode",
+        "prompt_toolkit",
+        "Pillow",
+        "pytesseract",
     ],
     extras_require={
         "develop": [
