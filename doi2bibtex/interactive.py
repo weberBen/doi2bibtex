@@ -84,7 +84,15 @@ def ocr_image(image_source, console: Console) -> str:
             else:
                 img = image_source
 
-            return pytesseract.image_to_string(img)
+            text = pytesseract.image_to_string(img)
+
+            # Clean up control characters that Tesseract sometimes extracts
+            # Remove form feed (\f), vertical tab (\v), and other unwanted control chars
+            # Keep only printable characters and common whitespace (space, tab, newline)
+            import re
+            text = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]', '', text)
+
+            return text.strip()
 
     except Exception as e:
         return f"Error performing OCR: {e}"
