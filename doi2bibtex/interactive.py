@@ -7,71 +7,31 @@ Interactive console mode for searching papers by title.
 # -----------------------------------------------------------------------------
 
 from typing import List, Dict, Optional, Any
-import sys
-import os
-import tempfile
-import time
 
-import requests
+from PIL import ImageGrab, Image
+import pytesseract
+
 from rich.console import Console
 from rich.panel import Panel
-from rich.text import Text
 from rich.syntax import Syntax
 
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.application import Application
+from prompt_toolkit.layout.containers import HSplit, Window
+from prompt_toolkit.layout.controls import FormattedTextControl
+from prompt_toolkit.layout.layout import Layout
+from prompt_toolkit.widgets import TextArea
+from prompt_toolkit.enums import EditingMode
+from prompt_toolkit.filters import Condition
+from prompt_toolkit.formatted_text import FormattedText
+
 from doi2bibtex.config import Configuration
-from doi2bibtex.resolve import resolve_identifier
+from doi2bibtex.resolve import resolve_identifier, resolve_title
 
 
 # -----------------------------------------------------------------------------
 # DEFINITIONS
 # -----------------------------------------------------------------------------
-
-def search_paper_by_title(title: str, limit: int = 10) -> List[Dict[str, Any]]:
-    """
-    Search for papers by title using CrossRef API.
-    Returns a list of results with title, DOI, authors, year, journal, and abstract.
-    """
-
-    # Query CrossRef API
-    url = "https://api.crossref.org/works"
-    params = {
-        "query.title": title,
-        "rows": limit,
-        "select": "DOI,title,author,published,container-title,abstract,publisher"
-    }
-
-    try:
-        r = requests.get(url, params=params, timeout=10)
-        r.raise_for_status()
-        data = r.json()
-
-        results = []
-        if "message" in data and "items" in data["message"]:
-            for item in data["message"]["items"]:
-                result = {
-                    "doi": item.get("DOI", ""),
-                    "title": item.get("title", [""])[0] if item.get("title") else "",
-                    "authors": item.get("author", []),
-                    "year": "",
-                    "journal": item.get("container-title", [""])[0] if item.get("container-title") else "",
-                    "abstract": item.get("abstract", ""),
-                    "publisher": item.get("publisher", "")
-                }
-
-                # Extract year from published date
-                if "published" in item:
-                    date_parts = item["published"].get("date-parts", [[]])[0]
-                    if date_parts:
-                        result["year"] = str(date_parts[0])
-
-                results.append(result)
-
-        return results
-
-    except Exception as e:
-        print(f"Error searching CrossRef: {e}")
-        return []
-
 
 def format_authors(authors: List[Dict[str, str]], max_authors: int = 3) -> str:
     """
@@ -101,11 +61,8 @@ def get_clipboard_image():
     Returns PIL Image or None.
     """
     try:
-        from PIL import ImageGrab
-
         # Try to get image from clipboard
         img = ImageGrab.grabclipboard()
-
         if img is not None and hasattr(img, 'save'):
             return img
 
@@ -121,47 +78,13 @@ def ocr_image(image_source, console: Console) -> str:
     """
     try:
         # Display OCR in progress animation
-        with console.status("[cyan]OCR en cours...", spinner="dots"):
-            # Try to import pytesseract
-            try:
-                import pytesseract
-                from PIL import Image
+        with console.status("[cyan]OCR in progress...", spinner="dots"):
+            if isinstance(image_source, str):
+                img = Image.open(image_source)
+            else:
+                img = image_source
 
-                # Handle both file path and PIL Image
-                if isinstance(image_source, str):
-                    img = Image.open(image_source)
-                else:
-                    img = image_source
-
-                text = pytesseract.image_to_string(img)
-                time.sleep(0.5)  # Brief pause so user sees the animation
-                return text.strip()
-
-            except ImportError:
-                # Try easyocr as fallback
-                try:
-                    import easyocr
-
-                    # Save to temp file if PIL Image
-                    if not isinstance(image_source, str):
-                        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
-                            image_source.save(tmp.name)
-                            temp_path = tmp.name
-                    else:
-                        temp_path = image_source
-
-                    reader = easyocr.Reader(['en'])
-                    result = reader.readtext(temp_path, detail=0)
-
-                    # Cleanup temp file if created
-                    if not isinstance(image_source, str):
-                        os.unlink(temp_path)
-
-                    time.sleep(0.5)
-                    return " ".join(result).strip()
-
-                except ImportError:
-                    return "Error: No OCR library found. Please install pytesseract or easyocr."
+            return pytesseract.image_to_string(img)
 
     except Exception as e:
         return f"Error performing OCR: {e}"
@@ -173,24 +96,6 @@ def interactive_mode(config: Configuration) -> None:
     """
 
     console = Console()
-
-    # Check if prompt_toolkit is available
-    try:
-        from prompt_toolkit import prompt
-        from prompt_toolkit.key_binding import KeyBindings
-        from prompt_toolkit.application import Application
-        from prompt_toolkit.layout.containers import HSplit, Window
-        from prompt_toolkit.layout.controls import FormattedTextControl
-        from prompt_toolkit.layout.layout import Layout
-        from prompt_toolkit.widgets import TextArea
-        from prompt_toolkit.enums import EditingMode
-        from prompt_toolkit.filters import Condition
-        from prompt_toolkit.formatted_text import FormattedText
-    except ImportError:
-        console.print("[red]Error: prompt_toolkit is required for interactive mode.[/red]")
-        console.print("Install it with: pip install prompt_toolkit")
-        sys.exit(1)
-
     console.print(Panel.fit(
         "[bold cyan]Interactive Mode[/bold cyan]\n\n"
         "Type or paste a paper title or DOI\n"
@@ -539,7 +444,7 @@ def interactive_mode(config: Configuration) -> None:
 
             try:
                 with console.status("Searching..."):
-                    results = search_paper_by_title(input_text)
+                    results = resolve_title(input_text)
 
                 if not results:
                     # Show message in toolbar on next loop iteration
@@ -584,17 +489,6 @@ def select_from_results(
     Display results and let user navigate and select using arrow keys.
     Returns the selected DOI or None if user cancelled.
     """
-
-    try:
-        from prompt_toolkit.application import Application
-        from prompt_toolkit.key_binding import KeyBindings
-        from prompt_toolkit.layout.containers import HSplit, Window
-        from prompt_toolkit.layout.controls import FormattedTextControl
-        from prompt_toolkit.layout.layout import Layout
-        from prompt_toolkit.formatted_text import FormattedText
-    except ImportError:
-        # Fallback to simple numbered selection
-        return simple_select(results, console)
 
     current_index = [0]
     show_abstract = [False]
@@ -713,36 +607,3 @@ def select_from_results(
         return None
 
     return selected_doi[0]
-
-
-def simple_select(results: List[Dict[str, Any]], console: Console) -> Optional[str]:
-    """
-    Simple fallback selection using numbered input.
-    """
-    console.print("\n[cyan]Search results:[/cyan]\n")
-
-    for i, result in enumerate(results):
-        title = result.get("title", "No title")
-        year = result.get("year", "N/A")
-        journal = result.get("journal", "N/A")
-        authors = format_authors(result.get("authors", []), max_authors=3)
-
-        console.print(f"[{i+1}] {title}")
-        console.print(f"    Authors: {authors}")
-        console.print(f"    Year: {year}, Journal: {journal}\n")
-
-    while True:
-        try:
-            choice = input("\nSelect a result (number) or 'q' to cancel: ").strip()
-            if choice.lower() == 'q':
-                return None
-
-            index = int(choice) - 1
-            if 0 <= index < len(results):
-                return results[index].get("doi")
-            else:
-                console.print("[red]Invalid selection. Try again.[/red]")
-        except ValueError:
-            console.print("[red]Invalid input. Please enter a number.[/red]")
-        except (KeyboardInterrupt, EOFError):
-            return None

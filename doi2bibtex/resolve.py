@@ -6,11 +6,12 @@ Methods for resolving identifiers to BibTeX entries.
 # IMPORTS
 # -----------------------------------------------------------------------------
 
+from typing import List, Dict, Any
+
 from bs4 import BeautifulSoup
-
 import json
-
 import requests
+
 
 from doi2bibtex.ads import get_ads_token
 from doi2bibtex.bibtex import bibtex_string_to_dict, dict_to_bibtex_string
@@ -148,3 +149,45 @@ def resolve_identifier(identifier: str, config: Configuration) -> str:
 
     except Exception as e:
         return "\n" + "  There was an error:\n  " + str(e) + "\n"
+
+def resolve_title(title: str, limit: int = 10) -> List[Dict[str, Any]]:
+    """
+    Search for papers by title using CrossRef API.
+    Returns a list of results with title, DOI, authors, year, journal, and abstract.
+    """
+
+    # Query CrossRef API
+    url = "https://api.crossref.org/works"
+    params = {
+        "query.title": title,
+        "rows": limit,
+        "select": "DOI,title,author,published,container-title,abstract,publisher"
+    }
+
+    r = requests.get(url, params=params, timeout=10)
+    r.raise_for_status()
+    data = r.json()
+
+    results = []
+    if "message" in data and "items" in data["message"]:
+        for item in data["message"]["items"]:
+            result = {
+                "doi": item.get("DOI", ""),
+                "title": item.get("title", [""])[0] if item.get("title") else "",
+                "authors": item.get("author", []),
+                "year": "",
+                "journal": item.get("container-title", [""])[0] if item.get("container-title") else "",
+                "abstract": item.get("abstract", ""),
+                "publisher": item.get("publisher", "")
+            }
+
+            # Extract year from published date
+            if "published" in item:
+                date_parts = item["published"].get("date-parts", [[]])[0]
+                if date_parts:
+                    result["year"] = str(date_parts[0])
+
+            results.append(result)
+
+    return results
+
