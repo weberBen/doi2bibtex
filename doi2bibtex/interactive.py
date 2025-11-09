@@ -68,7 +68,7 @@ def get_clipboard_image():
         return None
 
 
-def ocr_image(image_source, console: Console) -> str:
+def ocr_image(image_source, console: Console, tesseract_cmd=None) -> str:
     """
     Perform OCR on an image to extract text.
     image_source can be a file path (str) or PIL Image object.
@@ -76,7 +76,17 @@ def ocr_image(image_source, console: Console) -> str:
 
     # lazy import to avoid console launch delay
     from PIL import Image
-    import pytesseract
+
+    # Test if pytesseract is available
+    try:
+        import pytesseractd
+    except ImportError:
+        return ("Error: Tesseract Tesseract OCR is not installed or not in PATH.\n"
+                "On Windows set `tesseract_cmd` in the config file.\n"
+                "See: https://tesseract-ocr.github.io/tessdoc/Installation.html")
+
+    if tesseract_cmd is not None:
+        pytesseract.pytesseract.tesseract_cmd = tesseract_cmd # windows only
 
     try:
         # Display OCR in progress animation
@@ -86,7 +96,13 @@ def ocr_image(image_source, console: Console) -> str:
             else:
                 img = image_source
 
-            text = pytesseract.image_to_string(img)
+            # Test if tesseract command is available
+            try:
+                text = pytesseract.image_to_string(img)
+            except pytesseract.TesseractNotFoundError:
+                return ("Error: Tesseract OCR is not installed or not in PATH.\n"
+                        "On Windows set `tesseract_cmd` in the config file.\n"
+                        "See: https://tesseract-ocr.github.io/tessdoc/Installation.html")
 
             # Clean up control characters that Tesseract sometimes extracts
             # Remove form feed (\f), vertical tab (\v), and other unwanted control chars
@@ -366,7 +382,7 @@ def interactive_mode(config) -> None:
                 console.print("\n[green]Image detected![/green]")
 
                 # Perform OCR on the clipboard image
-                ocr_text = ocr_image(clipboard_image, console)
+                ocr_text = ocr_image(clipboard_image, console, tesseract_cmd=config.tesseract_cmd)
 
                 if ocr_text.startswith("Error:"):
                     console.print(f"[red]{ocr_text}[/red]")
