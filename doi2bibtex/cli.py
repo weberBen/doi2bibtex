@@ -17,7 +17,6 @@ from rich.syntax import Syntax
 from doi2bibtex import __version__
 from doi2bibtex.config import Configuration
 from doi2bibtex.resolve import resolve_identifier
-from doi2bibtex.interactive import interactive_mode
 
 
 # -----------------------------------------------------------------------------
@@ -107,6 +106,7 @@ def main() -> None:  # pragma: no cover
 
     # If no identifier is provided, enter interactive mode
     if args.identifier is None:
+        from doi2bibtex.interactive import interactive_mode # lazy loading
         interactive_mode(config=config)
         sys.exit(0)
 

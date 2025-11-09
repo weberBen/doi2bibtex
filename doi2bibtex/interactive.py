@@ -8,13 +8,10 @@ Interactive console mode for searching papers by title.
 
 from typing import List, Dict, Optional, Any
 
-from PIL import ImageGrab, Image
-import pytesseract
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
-
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.application import Application
 from prompt_toolkit.layout.containers import HSplit, Window
@@ -25,9 +22,7 @@ from prompt_toolkit.enums import EditingMode
 from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import FormattedText
 
-from doi2bibtex.config import Configuration
 from doi2bibtex.resolve import resolve_identifier, resolve_title
-
 
 # -----------------------------------------------------------------------------
 # DEFINITIONS
@@ -60,6 +55,8 @@ def get_clipboard_image():
     Get image from clipboard if available.
     Returns PIL Image or None.
     """
+    from PIL import ImageGrab
+    
     try:
         # Try to get image from clipboard
         img = ImageGrab.grabclipboard()
@@ -76,6 +73,11 @@ def ocr_image(image_source, console: Console) -> str:
     Perform OCR on an image to extract text.
     image_source can be a file path (str) or PIL Image object.
     """
+
+    # lazy import to avoid console launch delay
+    from PIL import Image
+    import pytesseract
+
     try:
         # Display OCR in progress animation
         with console.status("[cyan]OCR in progress...", spinner="dots"):
@@ -98,7 +100,7 @@ def ocr_image(image_source, console: Console) -> str:
         return f"Error performing OCR: {e}"
 
 
-def interactive_mode(config: Configuration) -> None:
+def interactive_mode(config) -> None:
     """
     Interactive console mode for searching papers by title.
     """
@@ -490,13 +492,20 @@ def interactive_mode(config: Configuration) -> None:
 def select_from_results(
     results: List[Dict[str, Any]],
     original_query: str,
-    console: Console,
-    config: Configuration
+    console,
+    config
 ) -> Optional[str]:
     """
     Display results and let user navigate and select using arrow keys.
     Returns the selected DOI or None if user cancelled.
     """
+
+    from prompt_toolkit.application import Application
+    from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.layout.containers import HSplit, Window
+    from prompt_toolkit.layout.controls import FormattedTextControl
+    from prompt_toolkit.layout.layout import Layout
+    from prompt_toolkit.formatted_text import FormattedText
 
     current_index = [0]
     show_abstract = [False]
