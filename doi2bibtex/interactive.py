@@ -28,6 +28,102 @@ from doi2bibtex.resolve import resolve_identifier, resolve_title
 # DEFINITIONS
 # -----------------------------------------------------------------------------
 
+def display_bibtex_with_pause(bibtex: str, console: Console, config) -> None:
+    """
+    Display BibTeX with syntax highlighting and pause to allow text selection.
+    User can optionally copy to clipboard by pressing 'c'.
+    """
+    console.print(f'[green]BibTeX entry:[/green]\n')
+
+    # Apply syntax highlighting
+    syntax = Syntax(
+        code=bibtex,
+        lexer="bibtex",
+        theme=config.pygments_theme,
+        word_wrap=True,
+    )
+
+    console.print(syntax)
+    console.print()
+
+    # Display pause message with copy option
+    console.print(Panel.fit(
+        "[bold cyan]You can now select and copy the BibTeX text above[/bold cyan]\n\n"
+        "[dim]Press 'c' to copy to clipboard + continue, or any other key to continue...[/dim]",
+        border_style="cyan"
+    ))
+
+    # Read single character without waiting for ENTER
+    # This allows text selection since prompt_toolkit is not active
+    try:
+        import sys
+        import tty
+        import termios
+
+        # Save terminal settings
+        old_settings = termios.tcgetattr(sys.stdin)
+        try:
+            # Set terminal to raw mode to read single character
+            tty.setraw(sys.stdin.fileno())
+            char = sys.stdin.read(1).lower()
+
+            # Restore terminal settings immediately
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+
+            # If user pressed 'c', copy to clipboard
+            if char == 'c':
+                try:
+                    import pyperclip
+                    pyperclip.copy(bibtex)
+                    console.print("\n[green bold]✓ BibTeX copied to clipboard![/green bold]\n")
+                except ImportError:
+                    console.print("\n[yellow]Note: Install 'pyperclip' for clipboard copy functionality[/yellow]\n")
+                except Exception as e:
+                    console.print(f"\n[yellow]Could not copy to clipboard: {e}[/yellow]\n")
+            else:
+                console.print()  # Just add newline
+
+        except Exception:
+            # Restore settings on error
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+            console.print()
+
+    except (ImportError, AttributeError):
+        # Fallback for Windows or if termios not available
+        try:
+            import msvcrt
+            char = msvcrt.getch().decode('utf-8').lower()
+
+            if char == 'c':
+                try:
+                    import pyperclip
+                    pyperclip.copy(bibtex)
+                    console.print("\n[green bold]✓ BibTeX copied to clipboard![/green bold]\n")
+                except ImportError:
+                    console.print("\n[yellow]Note: Install 'pyperclip' for clipboard copy functionality[/yellow]\n")
+                except Exception as e:
+                    console.print(f"\n[yellow]Could not copy to clipboard: {e}[/yellow]\n")
+            else:
+                console.print()
+        except ImportError:
+            # Ultimate fallback: use input()
+            user_input = input().strip().lower()
+            if user_input == 'c':
+                try:
+                    import pyperclip
+                    pyperclip.copy(bibtex)
+                    console.print("[green bold]✓ BibTeX copied to clipboard![/green bold]\n")
+                except ImportError:
+                    console.print("[yellow]Note: Install 'pyperclip' for clipboard copy functionality[/yellow]\n")
+                except Exception as e:
+                    console.print(f"[yellow]Could not copy to clipboard: {e}[/yellow]\n")
+            else:
+                console.print()
+    except (KeyboardInterrupt, EOFError):
+        console.print()
+
+    console.print()  # Add spacing before returning to interactive mode
+
 def format_authors(authors: List[Dict[str, str]], max_authors: int = 3) -> str:
     """
     Format author list for display, showing only first N authors.
@@ -450,18 +546,7 @@ def interactive_mode(config) -> None:
                 with console.status("Resolving..."):
                     bibtex = resolve_identifier(identifier=input_text, config=config)
 
-                console.print(f'[green]BibTeX entry:[/green]\n')
-
-                # Apply syntax highlighting
-                syntax = Syntax(
-                    code=bibtex,
-                    lexer="bibtex",
-                    theme=config.pygments_theme,
-                    word_wrap=True,
-                )
-
-                console.print(syntax)
-                console.print("\n")
+                display_bibtex_with_pause(bibtex, console, config)
 
             except Exception as e:
                 # Show error in toolbar on next loop iteration
@@ -495,18 +580,7 @@ def interactive_mode(config) -> None:
                 with console.status("Fetching BibTeX..."):
                     bibtex = resolve_identifier(identifier=selected_doi, config=config)
 
-                console.print(f'[green]BibTeX entry:[/green]\n')
-
-                # Apply syntax highlighting
-                syntax = Syntax(
-                    code=bibtex,
-                    lexer="bibtex",
-                    theme=config.pygments_theme,
-                    word_wrap=True,
-                )
-
-                console.print(syntax)
-                console.print("\n")
+                display_bibtex_with_pause(bibtex, console, config)
 
 
 def select_from_results(

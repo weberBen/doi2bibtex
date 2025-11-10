@@ -49,6 +49,7 @@ setup(
         "prompt_toolkit",
         "rapidocr-onnxruntime",
         "numpy",
+        "pyperclip",
     ],
     extras_require={
         "develop": [

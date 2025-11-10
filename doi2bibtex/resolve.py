@@ -171,6 +171,7 @@ def resolve_title(title: str, limit: int = 10) -> List[Dict[str, Any]]:
     results = []
     if "message" in data and "items" in data["message"]:
         for item in data["message"]["items"]:
+            print("item=", item)
             result = {
                 "doi": item.get("DOI", ""),
                 "title": item.get("title", [""])[0] if item.get("title") else "",
