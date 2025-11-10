@@ -73,7 +73,42 @@ d2b <doi-or-arxiv_id>
 
 You can also add the `--plain` flag to output only the BibTeX entry without any fancy formatting. This can be useful if you, for example, want to pipe the output of the `d2b` command to another program.
 
+### 🔍 Search by title
 
+You can search for papers by title using the `--title` flag:
+
+```bash
+d2b --title "Attention is all you need"
+```
+
+This will search for papers matching the title and display an interactive selection menu where you can browse results and choose the one you want. Add `--first` to automatically select the first result:
+
+```bash
+d2b --title "Deep Learning" --first
+```
+
+### 🎨 Interactive mode
+
+Launch **doi2bibtex** without any arguments to enter interactive mode:
+
+```bash
+d2b
+```
+
+This opens an interactive console where you can search by title or DOI, explore potential matches, and retrieve BibTeX citations.
+This feature is particularly useful when working with open PDFs where the title is easier to copy than the DOI, since DOIs often are superimposed on papers making them difficult to select, whereas titles are typically plain text. Additionally, since copied titles often span multiple lines due to formatting, it would normally break when pasted into a standard terminal command.
+
+Each search result displays:
+- Paper title
+- Authors
+- Publication year
+- Journal/venue
+- Abstract
+
+The console also supports pasting images directly, using OCR ([RapidOCR](https://github.com/RapidAI/RapidOCR)) to extract the title automatically.
+
+**Note:** The image is processed only to be converted as plain text. It does not automatically locate the title within a full page. Ensure your image is cropped to focus on the title area.
+While automatic title detection is technically feasible ([GROBID](https://github.com/kermitt2/grobid), [VILA](https://github.com/NVlabs/VILA), [CERMINE](https://github.com/CeON/CERMINE), [Moondream2](https://huggingface.co/vikhyatk/moondream2), [Qwen3-VL 2B](https://github.com/QwenLM/Qwen3-VL)), it would require significant computational resources without providing proportional benefits for this project's use case.
 
 
 ### ⚙️ Changing the default configuration
@@ -103,8 +138,15 @@ update_arxiv_if_doi: true       # Update arXiv entries with DOI information, if 
 
 ## 🦄 Features
 
-Besides the eponymous ability of resolving DOIs (and other identifiers) to BibTeX entries, this package offers a lot more features for post-processing the entries. Here are some highlights:
+Besides the eponymous ability of resolving DOIs (and other identifiers) to BibTeX entries, this package offers a lot more features:
 
+### Search & Discovery
+- **Interactive mode** with title search, DOI lookup, and history navigation
+- **OCR support** for extracting research title/DOI text from images 
+- **Search by title**
+- **Post-processing customization**
+
+### BibTeX post-processing
 - Automatically resolve the `adsurl` field required by some astrophysics journals (requires an [API token](https://ui.adsabs.harvard.edu/help/api/) for ADS)
 - Cross-match entries (in particular: arXiv preprints) with [dblp.org](https://dblp.org/) to retrieve the venue information for conference papers from machine learning (e.g., "ICLR 2021"). Note: This feature is still experimental because querying dblp is somewhat fickle.
 - Convert LaTeX-encoded characters in author names to Unicode, for example, `Müller` instead of `M{\"u}ller`
