@@ -68,49 +68,53 @@ def get_clipboard_image():
         return None
 
 
-def ocr_image(image_source, console: Console, tesseract_cmd=None) -> str:
+def normalize_text(text):
+    import re
+
+    # remove control char
+    text = re.sub(r'[\x00-\x1f\x7f]', ' ', text)
+    # remove extra space line break, tabulation, ect
+    text = re.sub(r'\s+', ' ', text)
+
+    return text
+
+def ocr_image(image_source, console: Console) -> str:
     """
-    Perform OCR on an image to extract text.
+    Perform OCR on an image to extract text using RapidOCR.
     image_source can be a file path (str) or PIL Image object.
     """
 
     # lazy import to avoid console launch delay
-    from PIL import Image
+    import numpy as np
+    from rapidocr_onnxruntime import RapidOCR
 
-    # Test if pytesseract is available
-    try:
-        import pytesseractd
-    except ImportError:
-        return ("Error: Tesseract Tesseract OCR is not installed or not in PATH.\n"
-                "On Windows set `tesseract_cmd` in the config file.\n"
-                "See: https://tesseract-ocr.github.io/tessdoc/Installation.html")
-
-    if tesseract_cmd is not None:
-        pytesseract.pytesseract.tesseract_cmd = tesseract_cmd # windows only
 
     try:
         # Display OCR in progress animation
         with console.status("[cyan]OCR in progress...", spinner="dots"):
+            # Initialize RapidOCR engine
+            engine = RapidOCR()
+
+            # Convert image to numpy array if needed
             if isinstance(image_source, str):
-                img = Image.open(image_source)
+                # RapidOCR can handle file paths directly
+                img_input = image_source
             else:
-                img = image_source
+                # Convert PIL Image to numpy array
+                img_input = np.array(image_source)
 
-            # Test if tesseract command is available
-            try:
-                text = pytesseract.image_to_string(img)
-            except pytesseract.TesseractNotFoundError:
-                return ("Error: Tesseract OCR is not installed or not in PATH.\n"
-                        "On Windows set `tesseract_cmd` in the config file.\n"
-                        "See: https://tesseract-ocr.github.io/tessdoc/Installation.html")
+            # Perform OCR
+            result, elapse = engine(img_input)
 
-            # Clean up control characters that Tesseract sometimes extracts
-            # Remove form feed (\f), vertical tab (\v), and other unwanted control chars
-            # Keep only printable characters and common whitespace (space, tab, newline)
-            import re
-            text = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]', '', text)
+            # Extract text from results
+            # result is a list of [bbox, text, score] or None if no text detected
+            if result is None or len(result) == 0:
+                return ""
 
-            return text.strip()
+            text_lines = [detection[1] for detection in result]
+            text = '\n'.join(text_lines)
+
+            return normalize_text(text)
 
     except Exception as e:
         return f"Error performing OCR: {e}"
@@ -382,7 +386,7 @@ def interactive_mode(config) -> None:
                 console.print("\n[green]Image detected![/green]")
 
                 # Perform OCR on the clipboard image
-                ocr_text = ocr_image(clipboard_image, console, tesseract_cmd=config.tesseract_cmd)
+                ocr_text = ocr_image(clipboard_image, console)
 
                 if ocr_text.startswith("Error:"):
                     console.print(f"[red]{ocr_text}[/red]")
@@ -425,7 +429,7 @@ def interactive_mode(config) -> None:
             console.print("\n[yellow]Exiting interactive mode.[/yellow]")
             return
 
-        input_text = text_area.text.strip()
+        input_text = normalize_text(text_area.text)
 
         if not input_text:
             console.print("[yellow]No input provided.[/yellow]")

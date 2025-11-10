@@ -47,8 +47,8 @@ setup(
         "rich",
         "unidecode",
         "prompt_toolkit",
-        "Pillow",
-        "pytesseract",
+        "rapidocr-onnxruntime",
+        "numpy",
     ],
     extras_require={
         "develop": [
