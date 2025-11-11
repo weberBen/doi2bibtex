@@ -137,7 +137,7 @@ def ocr_image(image_source, console: Console) -> str:
     except Exception as e:
         return f"Error performing OCR: {e}"
 
-def key_bindings(toolbar_message=None, search_mode=None):
+def key_bindings(toolbar_message=None, search_mode=None, txt_buffer=None):
     # Key bindings - defined once, reused for all prompts
     kb = KeyBindings()
 
@@ -162,21 +162,15 @@ def key_bindings(toolbar_message=None, search_mode=None):
             # No image in clipboard - show message in toolbar
             toolbar_message[0] = ("warning", "No image")
 
-    # @kb.add('c-^')  # Ctrl+6 (Ctrl+^ on US keyboards)
-    # @kb.add('c-a', 'c-a')  # Alternative: Ctrl+A twice
-    # def _(event):
-    #     """Select all text"""
-    #     buffer = event.current_buffer
-    #     buffer.cursor_position = 0
-    #     buffer.start_selection()
-    #     buffer.cursor_position = len(buffer.text)
-
     # NOTE: We don't bind up/down keys here - let PromptSession use default bindings
     # which handle both multiline navigation and history automatically
 
     @kb.add('s-tab')  # Shift+Tab to switch search mode
     def _(event):
         """Switch between title and DOI search modes"""
+        # Save current text before switching modes
+        txt_buffer[0] = event.current_buffer.text
+
         # Cycle through modes
         if search_mode[0] == "title":
             search_mode[0] = "doi"
@@ -184,7 +178,7 @@ def key_bindings(toolbar_message=None, search_mode=None):
             search_mode[0] = "title"
         # Exit with special result to switch mode
         event.app.exit(result=RESULT_MODE_SWITCH)
-    
+
     return kb
 
 # Create bottom toolbar showing current mode
@@ -224,10 +218,14 @@ def bottom_toolbar(toolbar_message=None, search_mode=None):
     return FormattedText(toolbar_parts)
 
 
-def handle_user_input(session=None, console=None, search_mode=None):
+def handle_user_input(session=None, console=None, search_mode=None, txt_buffer=None):
     prompt_text = "Title: " if search_mode[0] == "title" else "DOI: "
 
-    input_text = session.prompt(message=prompt_text)
+    # Use preserved text as default (from mode switch), then clear it
+    default_text = txt_buffer[0] if txt_buffer[0] is not None else ""
+    txt_buffer[0] = None  # Clear after use
+
+    input_text = session.prompt(message=prompt_text, default=default_text)
     processed_input = None
 
     # Check for special return values
@@ -348,8 +346,9 @@ def app(config) -> None:
     # State variables (as list for mutable effect over function args passing)
     search_mode = ["title"]  # "title" or "doi"
     toolbar_message = [None]  # Message to display in toolbar (persistent across iterations)
+    txt_buffer = [None]  # Text to preserve when switching modes or after OCR
 
-    kb = key_bindings(toolbar_message=toolbar_message, search_mode=search_mode)
+    kb = key_bindings(toolbar_message=toolbar_message, search_mode=search_mode, txt_buffer=txt_buffer)
     # Merge custom key bindings with default emacs bindings
     merged_bindings = merge_key_bindings([
         emacs.load_emacs_bindings(),
@@ -376,7 +375,8 @@ def app(config) -> None:
             input_text = handle_user_input(
                 session=session,
                 console=console,
-                search_mode=search_mode
+                search_mode=search_mode,
+                txt_buffer=txt_buffer
             )
             if not input_text:
                 continue
