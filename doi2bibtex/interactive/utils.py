@@ -5,7 +5,6 @@ from typing import List, Dict, Optional, Any
 # Tous les imports sont lazy
 _bs4 = lazy.load('bs4')
 _re = lazy.load('re')
-_ImageGrab = lazy.load('PIL.ImageGrab')
 _rapidocr = lazy.load('rapidocr_onnxruntime')
 _np = lazy.load('numpy')
 
@@ -69,9 +68,9 @@ def get_clipboard_image():
     Get image from clipboard if available.
     Returns PIL Image or None.
     """
-    
+    from PIL import ImageGrab
     # Try to get image from clipboard
-    img = _ImageGrab.grabclipboard()
+    img = ImageGrab.grabclipboard()
     if img is not None and hasattr(img, 'save'):
         return img
     return None

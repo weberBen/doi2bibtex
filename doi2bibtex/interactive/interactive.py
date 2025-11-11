@@ -339,9 +339,8 @@ def app(config) -> None:
         "  [bold]↑/↓[/bold] - Navigate history\n"
         "  [bold]Ctrl+A/E[/bold] - Start/End of line\n"
         "  [bold]Ctrl+W[/bold] - Delete word backward\n"
-        "  [bold]Ctrl+Z[/bold] - Undo\n"
         "  [bold]Ctrl+V[/bold] - Paste image for OCR\n"
-        "  [bold]Ctrl+Shift+V[/bold] - Paste text (terminal native)\n"
+        "  [bold]Ctrl+Shift+V[/bold] - Paste text\n"
         "  [bold]Ctrl+C[/bold] - Exit",
         border_style="cyan"
     ))

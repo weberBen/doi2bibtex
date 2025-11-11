@@ -108,7 +108,7 @@ def search_by_title(title: str, config: Configuration, auto_select_first: bool =
     Otherwise, display results in interactive mode.
     """
     from doi2bibtex.resolve import resolve_title
-    from doi2bibtex.interactive import select_from_results
+    from doi2bibtex.interactive.selection import app as select_from_results
 
     console = Console()
 
