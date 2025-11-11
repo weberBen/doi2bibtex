@@ -10,12 +10,11 @@ Interactive console mode for searching papers by title.
 from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
-from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
+from prompt_toolkit.key_binding.bindings import emacs
 from prompt_toolkit.enums import EditingMode
-from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.shortcuts import PromptSession
-from prompt_toolkit.application import get_app
 
 from doi2bibtex.resolve import resolve_identifier, resolve_title
 
@@ -138,45 +137,17 @@ def ocr_image(image_source, console: Console) -> str:
     except Exception as e:
         return f"Error performing OCR: {e}"
 
-
-def interactive_mode(config) -> None:
-    """
-    Interactive console mode for searching papers by title.
-    """
-
-    console = Console()
-    console.print(Panel.fit(
-        "[bold cyan]Interactive Mode[/bold cyan]\n\n"
-        "Type or paste a paper title or DOI\n"
-        "Paste an image (Ctrl+V) for OCR\n\n"
-        "Controls:\n"
-        "  [bold]Enter[/bold] - Launch search\n"
-        "  [bold]Shift+Tab[/bold] - Switch Title/DOI mode\n"
-        "  [bold]Arrows[/bold] - Navigate text\n"
-        "  [bold]↑/↓[/bold] - History (on first/last line)\n"
-        "  [bold]Ctrl+A/E[/bold] - Start/End of line\n"
-        "  [bold]Ctrl+W[/bold] - Delete word backward\n"
-        "  [bold]Ctrl+Z[/bold] - Undo\n"
-        "  [bold]Ctrl+V[/bold] - Paste image for OCR\n"
-        "  [bold]Ctrl+Shift+V[/bold] - Paste text (terminal native)\n"
-        "  [bold]Ctrl+C[/bold] - Exit",
-        border_style="cyan"
-    ))
-
-    # State variables
-    input_history = []
-    history_index = [None]  # None means we're not in history mode
-    current_draft = [None]  # Save current text when navigating history
-    search_mode = ["title"]  # "title" or "doi"
-    toolbar_message = [None]  # Message to display in toolbar (persistent across iterations)
-
+def key_bindings(toolbar_message=None, search_mode=None):
     # Key bindings - defined once, reused for all prompts
     kb = KeyBindings()
 
     @kb.add('enter')
     def _(event):
         """Validate input on Enter (overrides default multiline behavior)"""
-        event.app.exit(result=event.current_buffer.text)
+        buffer = event.current_buffer
+        # Manually append to history before exiting (since we bypass normal accept flow)
+        buffer.append_to_history()
+        event.app.exit(result=buffer.text)
 
     @kb.add('c-v')  # Ctrl+V for image paste only
     def _(event):
@@ -191,118 +162,17 @@ def interactive_mode(config) -> None:
             # No image in clipboard - show message in toolbar
             toolbar_message[0] = ("warning", "No image")
 
-    @kb.add('c-^')  # Ctrl+6 (Ctrl+^ on US keyboards)
-    @kb.add('c-a', 'c-a')  # Alternative: Ctrl+A twice
-    def _(event):
-        """Select all text"""
-        buffer = event.current_buffer
-        buffer.cursor_position = 0
-        buffer.start_selection()
-        buffer.cursor_position = len(buffer.text)
+    # @kb.add('c-^')  # Ctrl+6 (Ctrl+^ on US keyboards)
+    # @kb.add('c-a', 'c-a')  # Alternative: Ctrl+A twice
+    # def _(event):
+    #     """Select all text"""
+    #     buffer = event.current_buffer
+    #     buffer.cursor_position = 0
+    #     buffer.start_selection()
+    #     buffer.cursor_position = len(buffer.text)
 
-    @kb.add('c-z')  # Ctrl+Z for undo
-    def _(event):
-        """Undo last edit"""
-        event.current_buffer.undo()
-
-    # Conditions for smart arrow history navigation
-    @Condition
-    def on_first_line_or_empty():
-        """True if cursor on first line or text is empty"""
-        try:
-            app = get_app()
-            doc = app.current_buffer.document
-            return doc.cursor_position_row == 0 or len(doc.text) == 0
-        except:
-            return True
-
-    @Condition
-    def on_last_line_or_empty():
-        """True if cursor on last line or text is empty"""
-        try:
-            app = get_app()
-            doc = app.current_buffer.document
-            return doc.cursor_position_row >= doc.line_count - 1 or len(doc.text) == 0
-        except:
-            return True
-
-    @kb.add('up', filter=on_first_line_or_empty)
-    def _(event):
-        """Navigate history - previous (only when on first line)"""
-        if not input_history:
-            return
-
-        # If we're not in history mode, save current text and start from the end
-        if history_index[0] is None:
-            current_draft[0] = event.current_buffer.text
-            history_index[0] = len(input_history) - 1
-        elif history_index[0] > 0:
-            # Save current modifications to history before moving
-            input_history[history_index[0]] = event.current_buffer.text
-            history_index[0] -= 1
-
-        # Load history entry (copy to avoid modification of original)
-        if 0 <= history_index[0] < len(input_history):
-            event.current_buffer.text = str(input_history[history_index[0]])
-            event.current_buffer.cursor_position = len(event.current_buffer.text)
-
-    @kb.add('down', filter=on_last_line_or_empty)
-    def _(event):
-        """Navigate history - next (only when on last line)"""
-        if not input_history or history_index[0] is None:
-            return
-
-        # Save current modifications to history before moving
-        input_history[history_index[0]] = event.current_buffer.text
-
-        if history_index[0] < len(input_history) - 1:
-            history_index[0] += 1
-            event.current_buffer.text = str(input_history[history_index[0]])
-        else:
-            # Restore draft when going past the end
-            history_index[0] = None
-            event.current_buffer.text = current_draft[0] if current_draft[0] is not None else ""
-
-        event.current_buffer.cursor_position = len(event.current_buffer.text)
-
-    @kb.add('c-p')  # Ctrl+P for previous history (alternative)
-    def _(event):
-        """Navigate history - previous"""
-        if not input_history:
-            return
-
-        # If we're not in history mode, save current text and start from the end
-        if history_index[0] is None:
-            current_draft[0] = event.current_buffer.text
-            history_index[0] = len(input_history) - 1
-        elif history_index[0] > 0:
-            # Save current modifications to history before moving
-            input_history[history_index[0]] = event.current_buffer.text
-            history_index[0] -= 1
-
-        # Load history entry (copy to avoid modification)
-        if 0 <= history_index[0] < len(input_history):
-            event.current_buffer.text = str(input_history[history_index[0]])
-            event.current_buffer.cursor_position = len(event.current_buffer.text)
-
-    @kb.add('c-n')  # Ctrl+N for next history
-    def _(event):
-        """Navigate history - next"""
-        if not input_history or history_index[0] is None:
-            return
-
-        # Save current modifications to history before moving
-        input_history[history_index[0]] = event.current_buffer.text
-
-        if history_index[0] < len(input_history) - 1:
-            history_index[0] += 1
-            event.current_buffer.text = str(input_history[history_index[0]])
-        else:
-            # Restore draft when going past the end
-            history_index[0] = None
-            event.current_buffer.text = current_draft[0] if current_draft[0] is not None else ""
-
-        event.current_buffer.cursor_position = len(event.current_buffer.text)
+    # NOTE: We don't bind up/down keys here - let PromptSession use default bindings
+    # which handle both multiline navigation and history automatically
 
     @kb.add('s-tab')  # Shift+Tab to switch search mode
     def _(event):
@@ -314,165 +184,209 @@ def interactive_mode(config) -> None:
             search_mode[0] = "title"
         # Exit with special result to switch mode
         event.app.exit(result=RESULT_MODE_SWITCH)
+    
+    return kb
 
-    # Create bottom toolbar showing current mode
-    def get_bottom_toolbar():
-        """Generate bottom toolbar with mode indicator"""
-        # Build mode indicator
-        if search_mode[0] == "title":
-            toolbar_parts = [
-                ('bg:#0066cc #ffffff bold', ' Title Mode '),
-                ('', ' | '),
-                ('#888888', 'DOI Mode'),
-                ('', '     '),
-                ('#888888 italic', '(Shift+Tab to cycle)'),
-            ]
-        else:
-            toolbar_parts = [
-                ('#888888', 'Title Mode'),
-                ('', ' | '),
-                ('bg:#0066cc #ffffff bold', ' DOI Mode '),
-                ('', '     '),
-                ('#888888 italic', '(Shift+Tab to cycle)'),
-            ]
+# Create bottom toolbar showing current mode
+def bottom_toolbar(toolbar_message=None, search_mode=None):
+    """Generate bottom toolbar with mode indicator"""
+    # Build mode indicator
+    if search_mode[0] == "title":
+        toolbar_parts = [
+            ('bg:#0066cc #ffffff bold', ' Title Mode '),
+            ('', ' | '),
+            ('#888888', 'DOI Mode'),
+            ('', '     '),
+            ('#888888 italic', '(Shift+Tab to cycle)'),
+        ]
+    else:
+        toolbar_parts = [
+            ('#888888', 'Title Mode'),
+            ('', ' | '),
+            ('bg:#0066cc #ffffff bold', ' DOI Mode '),
+            ('', '     '),
+            ('#888888 italic', '(Shift+Tab to cycle)'),
+        ]
 
-        # Add message if present
-        if toolbar_message[0] is not None:
-            msg_type, msg_text = toolbar_message[0]
-            toolbar_parts.append(('', '     '))  # Spacing
-            if msg_type == "error":
-                toolbar_parts.append(('bg:#d32f2f #ffffff bold', f' ✗ {msg_text} '))
-            elif msg_type == "warning":
-                toolbar_parts.append(('bg:#f57c00 #ffffff bold', f' ⚠ {msg_text} '))
-            elif msg_type == "success":
-                toolbar_parts.append(('bg:#388e3c #ffffff bold', f' ✓ {msg_text} '))
-            else:  # info
-                toolbar_parts.append(('bg:#1976d2 #ffffff', f' ℹ {msg_text} '))
+    # Add message if present
+    if toolbar_message[0] is not None:
+        msg_type, msg_text = toolbar_message[0]
+        toolbar_parts.append(('', '     '))  # Spacing
+        if msg_type == "error":
+            toolbar_parts.append(('bg:#d32f2f #ffffff bold', f' ✗ {msg_text} '))
+        elif msg_type == "warning":
+            toolbar_parts.append(('bg:#f57c00 #ffffff bold', f' ⚠ {msg_text} '))
+        elif msg_type == "success":
+            toolbar_parts.append(('bg:#388e3c #ffffff bold', f' ✓ {msg_text} '))
+        else:  # info
+            toolbar_parts.append(('bg:#1976d2 #ffffff', f' ℹ {msg_text} '))
 
-        return FormattedText(toolbar_parts)
+    return FormattedText(toolbar_parts)
+
+
+def handle_user_input(session=None, console=None, search_mode=None):
+    prompt_text = "Title: " if search_mode[0] == "title" else "DOI: "
+
+    input_text = session.prompt(message=prompt_text)
+    processed_input = None
+
+    # Check for special return values
+    if input_text == RESULT_MODE_SWITCH:
+        # User pressed Shift+Tab to switch mode
+        return
+    
+    if input_text == RESULT_OCR_REQUESTED:
+        # User pressed Ctrl+V with an image in clipboard
+        clipboard_image = get_clipboard_image()
+        if not clipboard_image:
+            # Normal text input
+            console.print("[yellow]No input provided.[/yellow]")
+            return
+
+        console.print("\n[green]Image detected![/green]")
+
+        # Perform OCR on the clipboard image
+        ocr_text = ocr_image(clipboard_image, console)
+
+        if ocr_text.startswith("Error"):
+            console.print(f"[red]{ocr_text}[/red]")
+            return
+
+        console.print(f"\n[green]Extracted text:[/green]\n{ocr_text}\n")
+        console.print("[cyan]Edit the text if needed, then press Enter to search[/cyan]\n")
+
+        # Let user edit the OCR result
+        ocr_edited_txt = session.prompt(message="Edit: ", default=ocr_text)
+
+        # Handle special results from OCR editing
+        if ocr_edited_txt in [RESULT_MODE_SWITCH, RESULT_OCR_REQUESTED]:
+            return
+
+        processed_input = normalize_text(ocr_edited_txt)
+    
+
+    processed_input = normalize_text(ocr_edited_txt)
+    if not processed_input:
+        console.print("[yellow]No input provided.[/yellow]")
+        return
+    
+    return processed_input
+    
+def handle_user_doi(console=None, config=None, identifier=None, toolbar_message=None):
+    try:
+        with console.status("Resolving DOI..."):
+            bibtex = resolve_identifier(identifier=identifier, config=config)
+
+        display_bibtex_with_pause(bibtex, console, config)
+    except Exception as e:
+        toolbar_message[0] = ("error", f"Error resolving identifier: {str(e)[:80]}")
+        return False
+
+    return True
+
+def resolve_user_input(console=None, search_mode=None, input_text=None, config=None, toolbar_message=None):
+    # DOI mode
+    if search_mode[0] == "doi":
+        
+        console.print(f"\n[cyan]Searching for: {input_text}[/cyan]\n")
+        handle_user_doi(
+            console=console,
+            config=console,
+            identifier=console,
+            toolbar_message=toolbar_message
+        )
+        return
+
+    # Title mode
+    console.print(f"\n[cyan]Searching for: {input_text}[/cyan]\n")
+    try:
+        with console.status("Searching..."):
+            results = resolve_title(input_text)
+
+        if not results:
+            toolbar_message[0] = ("warning", "No results found. Try a different search term.")
+            return
+    except Exception as e:
+        toolbar_message[0] = ("error", f"Search error: {str(e)[:80]}")
+        return
+    
+    selected_doi = select_from_results(results, input_text, console, config)
+    if selected_doi:
+        handle_user_doi(
+            console=console,
+            config=console,
+            identifier=selected_doi,
+            toolbar_message=toolbar_message
+        )
+
+def app(config) -> None:
+    """
+    Interactive console mode for searching papers by title.
+    """
+
+    console = Console()
+    console.print(Panel.fit(
+        "[bold cyan]Interactive Mode[/bold cyan]\n\n"
+        "Type or paste a paper title or DOI\n"
+        "Paste an image (Ctrl+V) for OCR\n\n"
+        "Controls:\n"
+        "  [bold]Enter[/bold] - Launch search\n"
+        "  [bold]Shift+Tab[/bold] - Switch Title/DOI mode\n"
+        "  [bold]Arrows[/bold] - Navigate text\n"
+        "  [bold]↑/↓[/bold] - Navigate history\n"
+        "  [bold]Ctrl+A/E[/bold] - Start/End of line\n"
+        "  [bold]Ctrl+W[/bold] - Delete word backward\n"
+        "  [bold]Ctrl+Z[/bold] - Undo\n"
+        "  [bold]Ctrl+V[/bold] - Paste image for OCR\n"
+        "  [bold]Ctrl+Shift+V[/bold] - Paste text (terminal native)\n"
+        "  [bold]Ctrl+C[/bold] - Exit",
+        border_style="cyan"
+    ))
+
+    # State variables
+    search_mode = ["title"]  # "title" or "doi"
+    toolbar_message = [None]  # Message to display in toolbar (persistent across iterations)
+
+    kb = key_bindings(toolbar_message=toolbar_message, search_mode=search_mode)
+    # Merge custom key bindings with default emacs bindings
+    merged_bindings = merge_key_bindings([
+        emacs.load_emacs_bindings(),
+        kb,
+    ])
+
+    get_bottom_toolbar = lambda : bottom_toolbar(toolbar_message=toolbar_message, search_mode=search_mode)
 
     # Create PromptSession - reused for all inputs
+    # PromptSession uses InMemoryHistory by default
     session = PromptSession(
         multiline=True,
         wrap_lines=True,
         editing_mode=EditingMode.EMACS,
-        key_bindings=kb,
+        key_bindings=merged_bindings,
         bottom_toolbar=get_bottom_toolbar,
-        enable_history_search=False,  # We use custom history
     )
 
     while True:
-        # Determine prompt based on search mode
-        prompt_text = "Title: " if search_mode[0] == "title" else "DOI: "
-
-        # Clear toolbar message before new prompt
+        # Clear toolbar message
         toolbar_message[0] = None
 
-        # Get input from user using PromptSession
         try:
-            result = session.prompt(message=prompt_text)
-
-            # Check for special return values
-            if result == RESULT_MODE_SWITCH:
-                # User pressed Shift+Tab to switch mode
+            input_text = handle_user_input(
+                session=session,
+                console=console,
+                search_mode=search_mode
+            )
+            if not input_text:
                 continue
-            elif result == RESULT_OCR_REQUESTED:
-                # User pressed Ctrl+V with an image in clipboard
-                clipboard_image = get_clipboard_image()
-                if clipboard_image:
-                    console.print("\n[green]Image detected![/green]")
-
-                    # Perform OCR on the clipboard image
-                    ocr_text = ocr_image(clipboard_image, console)
-
-                    if ocr_text.startswith("Error"):
-                        console.print(f"[red]{ocr_text}[/red]")
-                        continue
-
-                    console.print(f"\n[green]Extracted text:[/green]\n{ocr_text}\n")
-                    console.print("[cyan]Edit the text if needed, then press Enter to search[/cyan]\n")
-
-                    # Get edited OCR text using prompt with default value
-                    try:
-                        ocr_result = session.prompt(message="Edit: ", default=ocr_text)
-
-                        # Handle special results from OCR editing
-                        if ocr_result == RESULT_MODE_SWITCH:
-                            continue
-                        elif ocr_result == RESULT_OCR_REQUESTED:
-                            # Ignore nested OCR requests
-                            continue
-
-                        input_text = normalize_text(ocr_result)
-                    except (KeyboardInterrupt, EOFError):
-                        console.print("\n[yellow]Search cancelled.[/yellow]")
-                        continue
-                else:
-                    # This shouldn't happen (already checked in key binding), but handle it
-                    continue
-            else:
-                # Normal text input
-                input_text = normalize_text(result)
-
-            # Reset history navigation state
-            current_draft[0] = None
-            history_index[0] = None
-
+        
         except (KeyboardInterrupt, EOFError):
             console.print("\n[yellow]Exiting interactive mode.[/yellow]")
             return
 
-        if not input_text:
-            console.print("[yellow]No input provided.[/yellow]")
-            continue
-
-        # Add to history (avoid duplicates of the last entry)
-        if not input_history or input_history[-1] != input_text:
-            input_history.append(input_text)
-        # Reset history index
-        history_index[0] = None
-
-        # Handle based on search mode
-        if search_mode[0] == "doi":
-            # DOI mode - resolve identifier directly
-            console.print(f"\n[cyan]Resolving DOI: {input_text}[/cyan]\n")
-
-            try:
-                with console.status("Resolving..."):
-                    bibtex = resolve_identifier(identifier=input_text, config=config)
-
-                display_bibtex_with_pause(bibtex, console, config)
-
-            except Exception as e:
-                # Show error in toolbar on next loop iteration
-                toolbar_message[0] = ("error", f"Error resolving identifier: {str(e)[:80]}")
-                continue
-
-        else:
-            # Title mode - search for papers
-            console.print(f"\n[cyan]Searching for: {input_text}[/cyan]\n")
-
-            try:
-                with console.status("Searching..."):
-                    results = resolve_title(input_text)
-
-                if not results:
-                    # Show message in toolbar on next loop iteration
-                    toolbar_message[0] = ("warning", "No results found. Try a different search term.")
-                    continue
-            except Exception as e:
-                # Show error in toolbar on next loop iteration
-                toolbar_message[0] = ("error", f"Search error: {str(e)[:80]}")
-                continue
-
-            # Display results and let user select
-            selected_doi = select_from_results(results, input_text, console, config)
-
-            if selected_doi:
-                # Get the BibTeX entry for the selected DOI
-                console.print(f"\n[cyan]Fetching BibTeX for DOI: {selected_doi}[/cyan]\n")
-
-                with console.status("Fetching BibTeX..."):
-                    bibtex = resolve_identifier(identifier=selected_doi, config=config)
-
-                display_bibtex_with_pause(bibtex, console, config)
+        resolve_user_input(
+            console=console,
+            search_mode=search_mode,
+            input_text=input_text,
+            config=config,
+            toolbar_message=toolbar_message
+        )

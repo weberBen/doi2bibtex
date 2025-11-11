@@ -184,7 +184,7 @@ def main() -> None:  # pragma: no cover
 
     # If no identifier is provided, enter interactive mode
     if args.identifier is None:
-        from doi2bibtex.interactive.interactive import interactive_mode # lazy loading
+        from doi2bibtex.interactive.interactive import app as interactive_mode # lazy loading
         interactive_mode(config=config)
         sys.exit(0)
 
