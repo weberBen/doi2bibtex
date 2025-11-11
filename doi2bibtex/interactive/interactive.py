@@ -35,7 +35,7 @@ RESULT_MODE_SWITCH = "__MODE_SWITCH__"
 RESULT_OCR_REQUESTED = "__OCR_REQUESTED__"
 
 
-def display_bibtex_with_pause(bibtex: str, console: Console, config) -> None:
+def display_bibtex(bibtex: str, console: Console, config) -> None:
     """
     Display BibTeX with syntax highlighting and pause to allow text selection.
     User can optionally copy to clipboard by pressing 'c'.
@@ -275,11 +275,12 @@ def handle_user_input(session=None, console=None, search_mode=None, txt_buffer=N
 def handle_user_doi(console=None, config=None, identifier=None, toolbar_message=None):
     try:
         with console.status("Resolving DOI..."):
-            bibtex = resolve_identifier(identifier=identifier, config=config)
+            bibtex = resolve_identifier(identifier=identifier, config=config, raise_on_error=True)
 
-        display_bibtex_with_pause(bibtex, console, config)
+        display_bibtex(bibtex, console, config)
     except Exception as e:
-        toolbar_message[0] = ("error", f"Error resolving identifier: {str(e)[:80]}")
+        console.print(f"\n[red bold]Error:[/red bold] {str(e)}\n")
+        toolbar_message[0] = ("error", f"Error resolving identifier")
         return False
 
     return True
@@ -304,10 +305,12 @@ def resolve_user_input(console=None, search_mode=None, input_text=None, config=N
             results = resolve_title(input_text)
 
         if not results:
-            toolbar_message[0] = ("warning", "No results found. Try a different search term.")
+            console.print(f"\n[yellow]No results found. Try a different search term.[/yellow]\n")
+            toolbar_message[0] = ("warning", "No results found")
             return
     except Exception as e:
-        toolbar_message[0] = ("error", f"Search error: {str(e)[:80]}")
+        console.print(f"\n[red bold]Search error:[/red bold] {str(e)}\n")
+        toolbar_message[0] = ("error", "Search error")
         return
     
     selected_doi = select_from_results(results, input_text, console, config)
@@ -368,9 +371,6 @@ def app(config) -> None:
     )
 
     while True:
-        # Clear toolbar message
-        toolbar_message[0] = None
-
         try:
             input_text = handle_user_input(
                 session=session,
@@ -380,10 +380,13 @@ def app(config) -> None:
             )
             if not input_text:
                 continue
-        
+
         except (KeyboardInterrupt, EOFError):
             console.print("\n[yellow]Exiting interactive mode.[/yellow]")
             return
+
+        # Clear toolbar message before processing new input
+        toolbar_message[0] = None
 
         resolve_user_input(
             console=console,

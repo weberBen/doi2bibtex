@@ -106,7 +106,7 @@ def resolve_doi(doi: str) -> dict:
     return bibtex
 
 
-def resolve_identifier(identifier: str, config: Configuration) -> str:
+def resolve_identifier(identifier: str, config: Configuration, raise_on_error=False) -> str:
     """
     Resolve the given `identifier` to a BibTeX entry. This function
     basically just determines the type of the identifier, calls the
@@ -148,6 +148,9 @@ def resolve_identifier(identifier: str, config: Configuration) -> str:
         return dict_to_bibtex_string(bibtex_dict).strip()
 
     except Exception as e:
+        if raise_on_error :
+            raise e
+        
         return "\n" + "  There was an error:\n  " + str(e) + "\n"
 
 def resolve_title(title: str, limit: int = 10) -> List[Dict[str, Any]]:
