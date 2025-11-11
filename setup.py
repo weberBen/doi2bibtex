@@ -50,6 +50,8 @@ setup(
         "rapidocr-onnxruntime",
         "numpy",
         "pyperclip",
+        "lazy_loader",
+        "Pillow",
     ],
     extras_require={
         "develop": [

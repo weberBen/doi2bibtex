@@ -7,6 +7,7 @@ _bs4 = lazy.load('bs4')
 _re = lazy.load('re')
 _rapidocr = lazy.load('rapidocr_onnxruntime')
 _np = lazy.load('numpy')
+_pyperclip = lazy.load('pyperclip')
 
 def normalize_text(text):
     # remove control char
@@ -74,6 +75,13 @@ def get_clipboard_image():
     if img is not None and hasattr(img, 'save'):
         return img
     return None
+
+def copy_to_clipboard(obj):
+    try :
+        _pyperclip.copy(obj)
+        return True
+    except Exception as e:
+        return False
 
 def ocr(image_source) -> str:
     """

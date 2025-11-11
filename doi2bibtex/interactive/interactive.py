@@ -22,18 +22,69 @@ from doi2bibtex.interactive.utils import (
   get_clipboard_image,
   ocr,
   normalize_text,
+  copy_to_clipboard,
 )
 
 from doi2bibtex.interactive.selection import app as select_from_results
 
-# -----------------------------------------------------------------------------
-# DEFINITIONS
-# -----------------------------------------------------------------------------
-
 # Special return values for PromptSession control flow
 RESULT_MODE_SWITCH = "__MODE_SWITCH__"
 RESULT_OCR_REQUESTED = "__OCR_REQUESTED__"
+COPY_EVENT_TRIGGER_CHAR = 'c'
 
+def bibtex_to_clipboard(console, bibtex):
+    if copy_to_clipboard(bibtex):
+        console.print("\n[green bold]✓ BibTeX copied to clipboard![/green bold]\n")
+    else:
+        console.print(f"\n[yellow]Could not copy to clipboard[/yellow]\n")
+
+def linux_terminal_buffer(console, bibtex):
+    """
+    Switch to raw terminal to allow user to select previous displayed text
+    as bibtext. And monitor the terminal for continuing.
+    prompt_toolkit does not allow to select previous text because it
+    captures all the events and would be too much burden to implement
+    """
+    import sys
+    import tty
+    import termios
+
+    # Save terminal settings
+    old_settings = termios.tcgetattr(sys.stdin)
+    try:
+        # Set terminal to raw mode to read single character
+        tty.setraw(sys.stdin.fileno())
+        char = sys.stdin.read(1).lower()
+
+        # Restore terminal settings immediately
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+
+        # If user pressed 'c', copy to clipboard
+        if char == COPY_EVENT_TRIGGER_CHAR:
+            bibtex_to_clipboard(console, bibtex)
+        else:
+            console.print()  # Just add newline
+
+    except Exception:
+        # Restore settings on error
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+        console.print()
+
+def windows_terminal_buffer(console, bibtex):
+    import msvcrt
+    char = msvcrt.getch().decode('utf-8').lower()
+
+    if char == COPY_EVENT_TRIGGER_CHAR:
+        bibtex_to_clipboard(console, bibtex)
+    else:
+        console.print()
+
+def fallback_terminal_buffer(console, bibtex):
+    user_input = input().strip().lower()
+    if user_input == 'c':
+        bibtex_to_clipboard(console, bibtex)
+    else:
+        console.print()
 
 def display_bibtex(bibtex: str, console: Console, config) -> None:
     """
@@ -50,80 +101,36 @@ def display_bibtex(bibtex: str, console: Console, config) -> None:
         word_wrap=True,
     )
 
-    console.print(syntax)
-    console.print()
-
     # Display pause message with copy option
     console.print(Panel.fit(
         "[bold cyan]You can now select and copy the BibTeX text above[/bold cyan]\n\n"
-        "[dim]Press 'c' to copy to clipboard + continue, or any other key to continue...[/dim]",
+        "[dim]Press 'c' to copy to clipboard, or any other key to continue...[/dim]",
         border_style="cyan"
     ))
 
-    # Read single character without waiting for ENTER
-    # This allows text selection since prompt_toolkit is not active
     try:
-        import sys
-        import tty
-        import termios
-
-        # Save terminal settings
-        old_settings = termios.tcgetattr(sys.stdin)
+        # Read single character without waiting for ENTER
+        # This allows text selection since prompt_toolkit is not active
         try:
-            # Set terminal to raw mode to read single character
-            tty.setraw(sys.stdin.fileno())
-            char = sys.stdin.read(1).lower()
-
-            # Restore terminal settings immediately
-            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
-
-            # If user pressed 'c', copy to clipboard
-            if char == 'c':
-                try:
-                    import pyperclip
-                    pyperclip.copy(bibtex)
-                    console.print("\n[green bold]✓ BibTeX copied to clipboard![/green bold]\n")
-                except Exception as e:
-                    console.print(f"\n[yellow]Could not copy to clipboard: {e}[/yellow]\n")
-            else:
-                console.print()  # Just add newline
-
-        except Exception:
-            # Restore settings on error
-            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
-            console.print()
-
-    except (ImportError, AttributeError):
-        # Fallback for Windows or if termios not available
+            linux_terminal_buffer(console, bibtex)
+            return
+        except (ImportError, AttributeError):
+            pass
+        
         try:
-            import msvcrt
-            char = msvcrt.getch().decode('utf-8').lower()
-
-            if char == 'c':
-                try:
-                    import pyperclip
-                    pyperclip.copy(bibtex)
-                    console.print("\n[green bold]✓ BibTeX copied to clipboard![/green bold]\n")
-                except Exception as e:
-                    console.print(f"\n[yellow]Could not copy to clipboard: {e}[/yellow]\n")
-            else:
-                console.print()
-        except ImportError:
-            # Ultimate fallback: use input()
-            user_input = input().strip().lower()
-            if user_input == 'c':
-                try:
-                    import pyperclip
-                    pyperclip.copy(bibtex)
-                    console.print("[green bold]✓ BibTeX copied to clipboard![/green bold]\n")
-                except Exception as e:
-                    console.print(f"[yellow]Could not copy to clipboard: {e}[/yellow]\n")
-            else:
-                console.print()
+            windows_terminal_buffer(console, bibtex)
+            return
+        except (ImportError, AttributeError):
+            pass
+        
+        fallback_terminal_buffer(console, bibtex)
+    
     except (KeyboardInterrupt, EOFError):
+        pass
+    finally:
         console.print()
 
-    console.print()  # Add spacing before returning to interactive mode
+    
 
 def ocr_image(image_source, console: Console) -> str:
     """
