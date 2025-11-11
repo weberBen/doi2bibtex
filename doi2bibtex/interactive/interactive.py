@@ -264,8 +264,10 @@ def handle_user_input(session=None, console=None, search_mode=None):
 
         processed_input = normalize_text(ocr_edited_txt)
     
-
-    processed_input = normalize_text(ocr_edited_txt)
+    
+    if processed_input is None:
+        processed_input = normalize_text(input_text)
+    
     if not processed_input:
         console.print("[yellow]No input provided.[/yellow]")
         return
@@ -287,12 +289,12 @@ def handle_user_doi(console=None, config=None, identifier=None, toolbar_message=
 def resolve_user_input(console=None, search_mode=None, input_text=None, config=None, toolbar_message=None):
     # DOI mode
     if search_mode[0] == "doi":
-        
+
         console.print(f"\n[cyan]Searching for: {input_text}[/cyan]\n")
         handle_user_doi(
             console=console,
-            config=console,
-            identifier=console,
+            config=config,
+            identifier=input_text,
             toolbar_message=toolbar_message
         )
         return
@@ -314,7 +316,7 @@ def resolve_user_input(console=None, search_mode=None, input_text=None, config=N
     if selected_doi:
         handle_user_doi(
             console=console,
-            config=console,
+            config=config,
             identifier=selected_doi,
             toolbar_message=toolbar_message
         )
@@ -343,7 +345,7 @@ def app(config) -> None:
         border_style="cyan"
     ))
 
-    # State variables
+    # State variables (as list for mutable effect over function args passing)
     search_mode = ["title"]  # "title" or "doi"
     toolbar_message = [None]  # Message to display in toolbar (persistent across iterations)
 
