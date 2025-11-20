@@ -153,43 +153,92 @@ def resolve_identifier(identifier: str, config: Configuration, raise_on_error=Fa
         
         return "\n" + "  There was an error:\n  " + str(e) + "\n"
 
-def resolve_title(title: str, limit: int = 10) -> List[Dict[str, Any]]:
+def resolve_title(title: str, config: Configuration, limit: int = 10) -> List[Dict[str, Any]]:
     """
-    Search for papers by title using CrossRef API.
+    Search for papers by title using Semantic Scholar API.
     Returns a list of results with title, DOI, authors, year, journal, and abstract.
+
+    To avoid rate limiting, add your API key to ~/.doi2bibtex/config.yaml:
+    semantic_scholar_api_key: "your_key_here"
+
+    Get a free API key at: https://www.semanticscholar.org/product/api
     """
 
-    # Query CrossRef API
-    url = "https://api.crossref.org/works"
+    # Query Semantic Scholar API
+    url = "https://api.semanticscholar.org/graph/v1/paper/search"
     params = {
-        "query.title": title,
-        "rows": limit,
-        "select": "DOI,title,author,published,container-title,abstract,publisher,type"
+        "query": title,
+        "limit": limit,
+        "fields": "title,authors,year,venue,abstract,externalIds,publicationTypes,publicationVenue"
     }
 
-    r = requests.get(url, params=params, timeout=10)
+    # Add API key if available (for higher rate limits)
+    headers = {}
+    if config.semantic_scholar_api_key:
+        headers["x-api-key"] = config.semantic_scholar_api_key
+
+    r = requests.get(url, params=params, headers=headers, timeout=10)
+
+    # Handle rate limiting with better error message
+    if r.status_code == 429:
+        raise RuntimeError(
+            "Semantic Scholar API rate limit exceeded. "
+            "Get a free API key at https://www.semanticscholar.org/product/api "
+            "and add it to ~/.doi2bibtex/config.yaml with key: semantic_scholar_api_key"
+        )
+
     r.raise_for_status()
     data = r.json()
 
     results = []
-    if "message" in data and "items" in data["message"]:
-        for item in data["message"]["items"]:
-            result = {
-                "doi": item.get("DOI", ""),
-                "title": item.get("title", [""])[0] if item.get("title") else "",
-                "authors": item.get("author", []),
-                "year": "",
-                "journal": item.get("container-title", [""])[0] if item.get("container-title") else "",
-                "abstract": item.get("abstract", ""),
-                "publisher": item.get("publisher", ""),
-                "type": item.get("type", "")
-            }
+    if "data" in data:
+        for item in data["data"]:
+            # Get identifier (prefer DOI, fallback to ArXiv)
+            external_ids = item.get("externalIds", {})
+            identifier = external_ids.get("DOI", "") or external_ids.get("ArXiv", "")
 
-            # Extract year from published date
-            if "published" in item:
-                date_parts = item["published"].get("date-parts", [[]])[0]
-                if date_parts:
-                    result["year"] = str(date_parts[0])
+            # Get venue/journal name
+            venue = item.get("venue", "")
+            if not venue and item.get("publicationVenue"):
+                venue = item.get("publicationVenue", {}).get("name", "")
+
+            # Get publisher
+            publisher = ""
+            if item.get("publicationVenue"):
+                publisher = item.get("publicationVenue", {}).get("publisher", "")
+
+            # Get type
+            pub_types = item.get("publicationTypes", [])
+            pub_type = pub_types[0] if pub_types else ""
+
+            # Transform authors from Semantic Scholar format to CrossRef format
+            # Semantic Scholar: [{"name": "John Doe", "authorId": "..."}, ...]
+            # CrossRef: [{"given": "John", "family": "Doe"}, ...]
+            raw_authors = item.get("authors", [])
+            authors = []
+            for author in raw_authors:
+                name = author.get("name", "")
+                if name:
+                    # Split name into given and family
+                    parts = name.split()
+                    if len(parts) > 1:
+                        given = " ".join(parts[:-1])
+                        family = parts[-1]
+                        authors.append({"given": given, "family": family})
+                    else:
+                        # Single name, treat as family name
+                        authors.append({"family": name})
+
+            result = {
+                "doi": identifier,
+                "title": item.get("title", ""),
+                "authors": authors,
+                "year": str(item.get("year", "")) if item.get("year") else "",
+                "journal": venue,
+                "abstract": item.get("abstract", ""),
+                "publisher": publisher,
+                "type": pub_type
+            }
 
             results.append(result)
 

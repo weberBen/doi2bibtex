@@ -117,7 +117,7 @@ def search_by_title(title: str, config: Configuration, auto_select_first: bool =
 
     try:
         with console.status("Searching..."):
-            results = resolve_title(title)
+            results = resolve_title(title, config)
 
         if not results:
             console.print("[yellow]No results found. Try a different search term.[/yellow]")

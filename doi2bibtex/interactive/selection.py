@@ -19,7 +19,7 @@ class ResultsControl(UIControl):
         self.original_query = original_query
         self.current_index = 0
         self.scroll_offset = 0
-        self.lines_per_result = 5  # title + authors + year/journal + type/publisher + empty line
+        self.lines_per_result = 6  # title + identifier + authors + year/journal + type/publisher + empty line
 
     def create_content(self, width: int, height: int) -> UIContent:
         """Generate the content to display"""
@@ -56,6 +56,7 @@ class ResultsControl(UIControl):
             style = "class:selected" if is_selected else ""
 
             title = result.get("title", "No title")
+            identifier = result.get("doi", "No identifier")
             year = result.get("year", "N/A")
             journal = result.get("journal", "N/A")
             authors = format_authors(result.get("authors", []), max_authors=3)
@@ -69,6 +70,7 @@ class ResultsControl(UIControl):
                 journal = journal[:37] + "..."
 
             lines.append([(style, f"{prefix}[{i+1}] {title}")])
+            lines.append([(style, f"    Identifier: {identifier}")])
             lines.append([(style, f"    Authors: {authors}")])
             lines.append([(style, f"    Year: {year}, Journal: {journal}")])
             lines.append([(style, f"    Type: {pub_type}, Publisher: {publisher}")])
