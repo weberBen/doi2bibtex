@@ -100,6 +100,7 @@ def display_bibtex(bibtex: str, console: Console, config) -> None:
         theme=config.pygments_theme,
         word_wrap=True,
     )
+    console.print(syntax)
 
     # Display pause message with copy option
     console.print(Panel.fit(
