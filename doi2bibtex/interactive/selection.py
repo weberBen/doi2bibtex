@@ -3,94 +3,57 @@ from typing import List, Dict, Optional, Any
 from prompt_toolkit.application import Application
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.layout.containers import HSplit, Window
-from prompt_toolkit.layout.controls import FormattedTextControl
+from prompt_toolkit.layout.controls import UIControl, UIContent
 from prompt_toolkit.layout.layout import Layout
-from prompt_toolkit.formatted_text import FormattedText
+from prompt_toolkit.mouse_events import MouseEventType
+from rich.panel import Panel
 
 from doi2bibtex.interactive.utils import parse_jats_text, format_authors
 
 
-def key_bindings(current_index=None, show_abstract=None, selected_doi=None, app_ref=None, results=None):
-    # Key bindings
-    kb = KeyBindings()
+class ResultsControl(UIControl):
+    """Custom UIControl for displaying and scrolling through results"""
 
-    @kb.add('up')
-    def _(event):
-        """Move selection up"""
-        if not show_abstract[0]:
-            current_index[0] = max(0, current_index[0] - 1)
-            if app_ref[0]:
-                app_ref[0].invalidate()
+    def __init__(self, results: List[Dict[str, Any]], original_query: str):
+        self.results = results
+        self.original_query = original_query
+        self.current_index = 0
+        self.scroll_offset = 0
+        self.lines_per_result = 5  # title + authors + year/journal + type/publisher + empty line
 
-    @kb.add('down')
-    def _(event):
-        """Move selection down"""
-        if not show_abstract[0]:
-            current_index[0] = min(len(results) - 1, current_index[0] + 1)
-            if app_ref[0]:
-                app_ref[0].invalidate()
+    def create_content(self, width: int, height: int) -> UIContent:
+        """Generate the content to display"""
+        # Calculate how many results fit on screen
+        visible_results = max(1, (height - 4) // self.lines_per_result)  # Reserve space for header/footer
 
-    @kb.add('space')
-    def _(event):
-        """Toggle abstract view"""
-        if not show_abstract[0]:
-            show_abstract[0] = True
-            if app_ref[0]:
-                app_ref[0].invalidate()
+        # Adjust scroll offset to keep current selection visible
+        if self.current_index < self.scroll_offset:
+            self.scroll_offset = self.current_index
+        elif self.current_index >= self.scroll_offset + visible_results:
+            self.scroll_offset = self.current_index - visible_results + 1
 
-    @kb.add('escape')
-    def _(event):
-        """Go back or cancel"""
-        if show_abstract[0]:
-            show_abstract[0] = False
-            if app_ref[0]:
-                app_ref[0].invalidate()
-        else:
-            event.app.exit()
+        # Ensure scroll_offset is valid
+        self.scroll_offset = max(0, min(self.scroll_offset, len(self.results) - visible_results))
 
-    @kb.add('enter')
-    def _(event):
-        """Select current result"""
-        if not show_abstract[0]:
-            selected_doi[0] = results[current_index[0]].get("doi")
-            event.app.exit()
+        # Build the display lines - each line is a list of (style, text) tuples
+        lines = []
 
-    @kb.add('c-c')
-    @kb.add('c-d')
-    def _(event):
-        """Exit"""
-        event.app.exit()
-    
-    return kb
+        # Header
+        lines.append([("class:header", f"Search results for: {self.original_query}")])
+        lines.append([("", "")])
 
-def display_text(current_index=None, show_abstract=None, results=None, original_query=None):
-    """Generate the display text based on current state"""
-    if show_abstract[0]:
-        # Show abstract for current selection
-        result = results[current_index[0]]
-        raw_abstract = result.get("abstract", "")
+        # Show scroll indicator at top
+        if self.scroll_offset > 0:
+            lines.append([("class:info", f"  ↑ {self.scroll_offset} more above ↑")])
+            lines.append([("", "")])
 
-        # Parse JATS XML if present and check if abstract exists
-        if raw_abstract:
-            abstract = parse_jats_text(raw_abstract)
-            abstract_style = ""
-        else:
-            abstract = "No abstract available"
-            abstract_style = "red"
-
-        text = FormattedText([
-            ("cyan bold", f"\nAbstract for: {result['title']}\n\n"),
-            (abstract_style, abstract),
-            ("\n\ncyan", "\nPress [ESC] to return to results\n")
-        ])
-        return text
-    else:
-        # Show list of results
-        lines = [("cyan bold", f"\nSearch results for: {original_query}\n\n")]
-
-        for i, result in enumerate(results):
-            prefix = "> " if i == current_index[0] else "  "
-            style = "reverse" if i == current_index[0] else ""
+        # Display visible results
+        end_index = min(len(self.results), self.scroll_offset + visible_results)
+        for i in range(self.scroll_offset, end_index):
+            result = self.results[i]
+            is_selected = (i == self.current_index)
+            prefix = "► " if is_selected else "  "
+            style = "class:selected" if is_selected else ""
 
             title = result.get("title", "No title")
             year = result.get("year", "N/A")
@@ -99,15 +62,81 @@ def display_text(current_index=None, show_abstract=None, results=None, original_
             pub_type = result.get("type", "N/A")
             publisher = result.get("publisher", "N/A")
 
-            lines.append((style, f"{prefix}[{i+1}] {title}\n"))
-            lines.append((style, f"     Authors: {authors}\n"))
-            lines.append((style, f"     Year: {year}, Journal: {journal}\n"))
-            lines.append((style, f"     Type: {pub_type}, Publisher: {publisher}\n\n"))
+            # Truncate long fields
+            if len(publisher) > 40:
+                publisher = publisher[:37] + "..."
+            if len(journal) > 40:
+                journal = journal[:37] + "..."
 
-        lines.append(("cyan", "\nNavigation: "))
-        lines.append(("", "[↑↓] Select  [SPACE] Abstract  [ENTER] Choose  [ESC] Cancel\n"))
+            lines.append([(style, f"{prefix}[{i+1}] {title}")])
+            lines.append([(style, f"    Authors: {authors}")])
+            lines.append([(style, f"    Year: {year}, Journal: {journal}")])
+            lines.append([(style, f"    Type: {pub_type}, Publisher: {publisher}")])
+            lines.append([("", "")])
 
-        return FormattedText(lines)
+        # Show scroll indicator at bottom
+        if end_index < len(self.results):
+            remaining = len(self.results) - end_index
+            lines.append([("class:info", f"  ↓ {remaining} more below ↓")])
+            lines.append([("", "")])
+
+        # Footer
+        lines.append([("", "")])
+        lines.append([("class:footer", "Navigation: [↑↓] Navigate  [SPACE] View abstract  [ENTER] Select  [ESC] Cancel")])
+
+        return UIContent(
+            get_line=lambda i: lines[i] if i < len(lines) else [("", "")],
+            line_count=len(lines),
+            show_cursor=False,
+        )
+
+    def mouse_handler(self, mouse_event):
+        """Handle mouse events (optional)"""
+        if mouse_event.event_type == MouseEventType.MOUSE_UP:
+            return None
+        return None
+
+    def move_cursor_down(self):
+        """Move selection down"""
+        if self.current_index < len(self.results) - 1:
+            self.current_index += 1
+
+    def move_cursor_up(self):
+        """Move selection up"""
+        if self.current_index > 0:
+            self.current_index -= 1
+
+    def get_selected_result(self) -> Optional[Dict[str, Any]]:
+        """Get the currently selected result"""
+        if 0 <= self.current_index < len(self.results):
+            return self.results[self.current_index]
+        return None
+
+
+def show_abstract_popup(result: Dict[str, Any], console: Any) -> None:
+    """Display the abstract for a result"""
+    title = result.get("title", "No title")
+    raw_abstract = result.get("abstract", "")
+
+    console.print("\n")
+    if raw_abstract:
+        abstract = parse_jats_text(raw_abstract)
+        console.print(Panel(
+            abstract,
+            title=f"[cyan bold]Abstract[/cyan bold]",
+            subtitle=f"[dim]{title}[/dim]",
+            border_style="cyan"
+        ))
+    else:
+        console.print(Panel(
+            "[red]No abstract available[/red]",
+            title=f"[cyan bold]Abstract[/cyan bold]",
+            subtitle=f"[dim]{title}[/dim]",
+            border_style="cyan"
+        ))
+
+    console.print("\n[dim]Press any key to return...[/dim]")
+
 
 def app(
     results: List[Dict[str, Any]],
@@ -116,54 +145,94 @@ def app(
     config: Dict,
 ) -> Optional[str]:
     """
-    Display results and let user navigate and select using arrow keys.
+    Display results and let user navigate and select.
     Returns the selected DOI or None if user cancelled.
     """
 
-    current_index = [0]
-    show_abstract = [False]
-    selected_doi = [None]
-    app_ref = [None]
+    console = Console
+    control = ResultsControl(results, original_query)
+    show_abstract_mode = [False]  # Use list for mutability in nested function
 
-    
-    kb  = key_bindings(
-      current_index=current_index,
-      show_abstract=show_abstract,
-      selected_doi=selected_doi,
-      app_ref=app_ref,
-      results=results
-    )
+    # Key bindings
+    kb = KeyBindings()
 
-    get_display_text = lambda: display_text(
-        current_index=current_index,
-        show_abstract=show_abstract,
-        results=results,
-        original_query=original_query
-    )
-    
+    @kb.add('up')
+    def _(event):
+        """Move selection up"""
+        if not show_abstract_mode[0]:
+            control.move_cursor_up()
+
+    @kb.add('down')
+    def _(event):
+        """Move selection down"""
+        if not show_abstract_mode[0]:
+            control.move_cursor_down()
+
+    @kb.add('space')
+    def _(event):
+        """Toggle abstract view"""
+        if not show_abstract_mode[0]:
+            result = control.get_selected_result()
+            if result:
+                show_abstract_mode[0] = True
+                event.app.exit(result="__SHOW_ABSTRACT__")
+
+    @kb.add('enter')
+    def _(event):
+        """Select current result"""
+        if not show_abstract_mode[0]:
+            result = control.get_selected_result()
+            if result:
+                event.app.exit(result=result.get("doi"))
+
+    @kb.add('escape')
+    @kb.add('c-c')
+    def _(event):
+        """Cancel"""
+        event.app.exit(result=None)
+
     # Create the application
-    app = Application(
+    application = Application(
         layout=Layout(
             HSplit([
                 Window(
-                    content=FormattedTextControl(
-                        text=get_display_text,
-                        focusable=True
-                    ),
-                    wrap_lines=True
+                    content=control,
+                    wrap_lines=False
                 )
             ])
         ),
         key_bindings=kb,
-        full_screen=False,
-        mouse_support=True
+        full_screen=True,
+        mouse_support=False,
+        style_transformation=None,
+        erase_when_done=True,
     )
 
-    app_ref[0] = app
+    # Main loop - handle abstract viewing
+    while True:
+        try:
+            result = application.run()
 
-    try:
-        app.run()
-    except (KeyboardInterrupt, EOFError):
-        return None
+            if result == "__SHOW_ABSTRACT__":
+                # Show abstract
+                selected = control.get_selected_result()
+                if selected:
+                    show_abstract_popup(selected, console)
+                    # Wait for key press
+                    import sys, tty, termios
+                    old_settings = termios.tcgetattr(sys.stdin)
+                    try:
+                        tty.setraw(sys.stdin.fileno())
+                        sys.stdin.read(1)
+                    finally:
+                        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
 
-    return selected_doi[0]
+                    show_abstract_mode[0] = False
+                    # Continue the loop to show menu again
+                    continue
+            else:
+                # Return the selected DOI or None
+                return result
+
+        except (KeyboardInterrupt, EOFError):
+            return None
