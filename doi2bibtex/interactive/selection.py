@@ -96,10 +96,13 @@ def display_text(current_index=None, show_abstract=None, results=None, original_
             year = result.get("year", "N/A")
             journal = result.get("journal", "N/A")
             authors = format_authors(result.get("authors", []), max_authors=3)
+            pub_type = result.get("type", "N/A")
+            publisher = result.get("publisher", "N/A")
 
             lines.append((style, f"{prefix}[{i+1}] {title}\n"))
             lines.append((style, f"     Authors: {authors}\n"))
-            lines.append((style, f"     Year: {year}, Journal: {journal}\n\n"))
+            lines.append((style, f"     Year: {year}, Journal: {journal}\n"))
+            lines.append((style, f"     Type: {pub_type}, Publisher: {publisher}\n\n"))
 
         lines.append(("cyan", "\nNavigation: "))
         lines.append(("", "[↑↓] Select  [SPACE] Abstract  [ENTER] Choose  [ESC] Cancel\n"))

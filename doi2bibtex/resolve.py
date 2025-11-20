@@ -164,7 +164,7 @@ def resolve_title(title: str, limit: int = 10) -> List[Dict[str, Any]]:
     params = {
         "query.title": title,
         "rows": limit,
-        "select": "DOI,title,author,published,container-title,abstract,publisher"
+        "select": "DOI,title,author,published,container-title,abstract,publisher,type"
     }
 
     r = requests.get(url, params=params, timeout=10)
@@ -181,7 +181,8 @@ def resolve_title(title: str, limit: int = 10) -> List[Dict[str, Any]]:
                 "year": "",
                 "journal": item.get("container-title", [""])[0] if item.get("container-title") else "",
                 "abstract": item.get("abstract", ""),
-                "publisher": item.get("publisher", "")
+                "publisher": item.get("publisher", ""),
+                "type": item.get("type", "")
             }
 
             # Extract year from published date
