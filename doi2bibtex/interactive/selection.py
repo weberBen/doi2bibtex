@@ -14,17 +14,24 @@ from doi2bibtex.interactive.utils import parse_jats_text, format_authors
 class ResultsControl(UIControl):
     """Custom UIControl for displaying and scrolling through results"""
 
-    def __init__(self, results: List[Dict[str, Any]], original_query: str):
+    def __init__(self, results: List[Dict[str, Any]], original_query: str, warnings: List[str] = None):
         self.results = results
         self.original_query = original_query
+        self.warnings = warnings or []
         self.current_index = 0
         self.scroll_offset = 0
         self.lines_per_result = 6  # title + identifier + authors + year/journal + type/publisher + empty line
 
     def create_content(self, width: int, height: int) -> UIContent:
         """Generate the content to display"""
+        # Calculate reserved lines for header, warnings, footer
+        header_lines = 2  # "Search results for:" + empty line
+        warning_lines = len(self.warnings) + 1 if self.warnings else 0  # warnings + empty line
+        footer_lines = 3  # empty line + footer + potential scroll indicator
+        reserved_lines = header_lines + warning_lines + footer_lines
+
         # Calculate how many results fit on screen
-        visible_results = max(1, (height - 4) // self.lines_per_result)  # Reserve space for header/footer
+        visible_results = max(1, (height - reserved_lines) // self.lines_per_result)
 
         # Adjust scroll offset to keep current selection visible
         if self.current_index < self.scroll_offset:
@@ -41,6 +48,12 @@ class ResultsControl(UIControl):
         # Header
         lines.append([("class:header", f"Search results for: {self.original_query}")])
         lines.append([("", "")])
+
+        # Display warnings if any
+        if self.warnings:
+            for warning in self.warnings:
+                lines.append([("fg:yellow", f"  ⚠ {warning}")])
+            lines.append([("", "")])
 
         # Show scroll indicator at top
         if self.scroll_offset > 0:
@@ -85,7 +98,7 @@ class ResultsControl(UIControl):
 
         # Footer
         lines.append([("", "")])
-        lines.append([("class:footer", "Navigation: [↑↓] Navigate  [SPACE] View abstract  [ENTER] Select  [ESC] Cancel")])
+        lines.append([("fg:cyan", "Navigation: [↑↓] Navigate  [SPACE] View abstract  [ENTER] Select  [ESC] Cancel")])
 
         return UIContent(
             get_line=lambda i: lines[i] if i < len(lines) else [("", "")],
@@ -172,6 +185,7 @@ def app(
     original_query: str,
     Console: Any,
     config: Dict,
+    warnings: List[str] = None,
 ) -> Optional[str]:
     """
     Display results and let user navigate and select.
@@ -179,7 +193,7 @@ def app(
     """
 
     console = Console
-    control = ResultsControl(results, original_query)
+    control = ResultsControl(results, original_query, warnings or [])
     show_abstract_mode = [False]  # Use list for mutability in nested function
 
     # Key bindings

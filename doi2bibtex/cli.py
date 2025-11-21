@@ -117,7 +117,7 @@ def search_by_title(title: str, config: Configuration, auto_select_first: bool =
 
     try:
         with console.status("Searching..."):
-            results = resolve_title(title, config)
+            results, warnings = resolve_title(title, config)
 
         if not results:
             console.print("[yellow]No results found. Try a different search term.[/yellow]")
@@ -137,7 +137,7 @@ def search_by_title(title: str, config: Configuration, auto_select_first: bool =
         console.print(f"[green]Auto-selected first result:[/green] {results[0].get('title', 'N/A')}\n")
     else:
         # Interactive selection
-        selected_doi = select_from_results(results, title, console, config)
+        selected_doi = select_from_results(results, title, console, config, warnings)
 
     if not selected_doi:
         console.print("[yellow]No selection made.[/yellow]")

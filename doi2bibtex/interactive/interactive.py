@@ -310,7 +310,7 @@ def resolve_user_input(console=None, search_mode=None, input_text=None, config=N
     console.print(f"\n[cyan]Searching for: {input_text}[/cyan]\n")
     try:
         with console.status("Searching..."):
-            results = resolve_title(input_text, config)
+            results, warnings = resolve_title(input_text, config)
 
         if not results:
             console.print(f"\n[yellow]No results found. Try a different search term.[/yellow]\n")
@@ -320,8 +320,8 @@ def resolve_user_input(console=None, search_mode=None, input_text=None, config=N
         console.print(f"\n[red bold]Search error:[/red bold] {str(e)}\n")
         toolbar_message[0] = ("error", "Search error")
         return
-    
-    selected_doi = select_from_results(results, input_text, console, config)
+
+    selected_doi = select_from_results(results, input_text, console, config, warnings)
     if selected_doi:
         handle_user_doi(
             console=console,

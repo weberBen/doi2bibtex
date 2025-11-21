@@ -154,6 +154,11 @@ def resolve_identifier(identifier: str, config: Configuration, raise_on_error=Fa
         
         return "\n" + "  There was an error:\n  " + str(e) + "\n"
 
-# Alias for backward compatibility
-resolve_title = search_papers
+# Wrapper for backward compatibility (returns tuple)
+def resolve_title(title: str, config: Configuration, limit: int = 10):
+    """
+    Resolve paper title to results using configured search sources.
+    Returns (results, warnings) tuple.
+    """
+    return search_papers(title, config, limit)
 

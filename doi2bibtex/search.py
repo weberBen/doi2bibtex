@@ -7,7 +7,7 @@ Methods for searching papers by title using various APIs.
 # -----------------------------------------------------------------------------
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 import requests
 
@@ -213,7 +213,7 @@ def search_semanticscholar(title: str, config: Configuration, limit: int = 10) -
 
     # Handle rate limiting
     if r.status_code == 429:
-        return []  # Return empty if rate limited
+        raise RuntimeError("Semantic Scholar rate limit exceeded")
 
     r.raise_for_status()
     data = r.json()
@@ -298,22 +298,22 @@ def _deduplicate_by_doi(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return deduplicated
 
 
-def _interleave_results(results_by_source: Dict[str, List[Dict[str, Any]]], limit: int) -> List[Dict[str, Any]]:
-    """Interleave results from multiple sources (1st from each, 2nd from each, etc.)"""
+def _interleave_results(results_by_source: Dict[str, List[Dict[str, Any]]], source_order: List[str], limit: int) -> List[Dict[str, Any]]:
+    """Interleave results from multiple sources following the specified order"""
     interleaved = []
     max_len = max(len(r) for r in results_by_source.values()) if results_by_source else 0
 
     for i in range(max_len):
-        for source_results in results_by_source.values():
-            if i < len(source_results):
-                interleaved.append(source_results[i])
+        for source in source_order:
+            if source in results_by_source and i < len(results_by_source[source]):
+                interleaved.append(results_by_source[source][i])
                 if len(interleaved) >= limit:
                     return interleaved
 
     return interleaved
 
 
-def search_papers(title: str, config: Configuration, limit: int = 10) -> List[Dict[str, Any]]:
+def search_papers(title: str, config: Configuration, limit: int = 10) -> Tuple[List[Dict[str, Any]], List[str]]:
     """
     Search for papers by title using configured sources.
 
@@ -327,7 +327,9 @@ def search_papers(title: str, config: Configuration, limit: int = 10) -> List[Di
         limit: Maximum number of results
 
     Returns:
-        List of paper results with unified format including source field
+        Tuple of (results, warnings) where:
+        - results: List of paper results with unified format including source field
+        - warnings: List of warning messages from failed sources
     """
 
     # Map source names to search functions
@@ -344,13 +346,18 @@ def search_papers(title: str, config: Configuration, limit: int = 10) -> List[Di
         # Default to openalex if no valid sources
         enabled_sources = ["openalex"]
 
+    warnings = []
+
     # Sequential mode: try sources in order
     if not config.merge_search_results:
         for source in enabled_sources:
-            results = search_functions[source]()
-            if results:
-                return results
-        return []
+            try:
+                results = search_functions[source]()
+                if results:
+                    return results, warnings
+            except Exception as e:
+                warnings.append(f"{source}: {str(e)}")
+        return [], warnings
 
     # Parallel mode: query all sources and interleave
     results_by_source = {}
@@ -369,14 +376,14 @@ def search_papers(title: str, config: Configuration, limit: int = 10) -> List[Di
                 results = future.result()
                 if results:
                     results_by_source[source] = results
-            except Exception:
-                # Skip sources that error
-                pass
+            except Exception as e:
+                # Collect warnings instead of printing
+                warnings.append(f"{source}: {str(e)}")
 
-    # Interleave results
-    interleaved = _interleave_results(results_by_source, limit)
+    # Interleave results following source order
+    interleaved = _interleave_results(results_by_source, enabled_sources, limit)
 
     # Deduplicate by DOI
     deduplicated = _deduplicate_by_doi(interleaved)
 
-    return deduplicated
+    return deduplicated, warnings
