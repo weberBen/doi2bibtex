@@ -123,8 +123,8 @@ Use the config file to select desired endpoint (default: `search_sources: ["open
 
 The search system can operate in two modes:
 
-- **Sequential mode** (default): Tries sources in order until results are found (`merge_search_results: false` in the config)
-- **Parallel mode** : Queries all enabled sources simultaneously, then interleaves results (1st from each source, then 2nd from each, etc.) and removes duplicates by DOI
+- **Parallel mode** (default `merge_search_results: false` in the config): Queries all enabled sources simultaneously, then interleaves results (1st from each source, then 2nd from each, etc.) and removes duplicates by DOI
+- **Sequential mode**: Tries sources in order until results are found
 
 
 ### ⚙️ Changing the default configuration
@@ -149,7 +149,7 @@ remove_url_if_doi: true         # Remove the `url` field if it is redundant with
 resolve_adsurl: true            # Query ADS to resolve the `adsurl` field, requires API token
 update_arxiv_if_doi: true       # Update arXiv entries with DOI information, if available ("related DOI")
 search_sources: ["openalex", "crossref", "semanticscholar"] # Sources to query when searching articles by title
-merge_search_results: false # If true, combines results from all sources; if false, uses sources sequentially until a match is found
+merge_search_results: true # If true, combines results from all sources; if false, uses sources sequentially until a match is found
 semantic_scholar_api_key: "" # Semantic Scholar API if needed
 openalex_email: "" # OpenAlex email if needed
 ```
