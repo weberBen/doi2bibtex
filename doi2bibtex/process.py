@@ -83,7 +83,7 @@ def first_valid_word(sentence):
         
         # Check conditions
         if len(clean_word) > 3 and "'" not in clean_word:
-            return clean_word.lower()
+            return remove_accented_characters(clean_word.lower())
     
     # If no valid word found
     return None
