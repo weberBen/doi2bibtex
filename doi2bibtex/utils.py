@@ -25,7 +25,6 @@ def doi_to_url(doi: str) -> str:
     encoded_doi = urllib.parse.quote(doi, safe="")
     return f"https://doi.org/{encoded_doi}"
 
-
 def latex_to_unicode(text: str, **kwargs) -> str:
     """
     Convert LaTeX-escaped to Unicode. Example: "{\"a}" -> "ä".
@@ -41,15 +40,6 @@ def latex_to_unicode(text: str, **kwargs) -> str:
     params = {**default_params, **kwargs}
     
     return str(LatexNodes2Text(**params).latex_to_text(text))
-
-def html_to_unicode(text: dict) -> dict:
-    """
-    Convert Html-escaped to Unicode.
-    """
-    try:
-        return html.unescape(text)
-    except:
-        return text
 
 def remove_accented_characters(string: str) -> str:
     """

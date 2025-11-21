@@ -18,7 +18,6 @@ from doi2bibtex.utils import (
     latex_to_unicode,
     remove_accented_characters,
     latex_to_unicode,
-    html_to_unicode,
 )
 
 
@@ -45,27 +44,6 @@ def preprocess_identifier(identifier: str) -> str:
 
     return identifier
 
-
-def clean_html_entities(bibtex_dict: dict) -> dict:
-    """
-    Decode HTML entities in all text fields of a BibTeX entry.
-
-    APIs may return text with HTML entities (e.g., &amp; instead of &).
-    This function cleans common text fields: title, booktitle, journal,
-    publisher, series, abstract, note, etc.
-    """
-    # List of fields that may contain HTML entities
-    text_fields = [
-        "title", "booktitle", "journal", "publisher", "series",
-        "abstract", "note", "address", "organization", "school",
-        "institution", "howpublished"
-    ]
-
-    for field in text_fields:
-        if field in bibtex_dict and bibtex_dict[field]:
-            bibtex_dict[field] = html_to_unicode(bibtex_dict[field])
-
-    return bibtex_dict
 
 def first_valid_word(sentence):
     """
@@ -97,9 +75,6 @@ def postprocess_bibtex(
     """
     Post-process a BibTeX entry and apply a series of fixes and tweaks.
     """
-
-    # Clean HTML entities in all text fields
-    bibtex_dict = clean_html_entities(bibtex_dict)
 
     # Fix broken ampersand in A&A journal name
     bibtex_dict = fix_broken_ampersand(bibtex_dict)
@@ -245,11 +220,20 @@ def fix_broken_ampersand(bibtex_dict: dict) -> dict:
     Fix broken ampersand in A&A journal name that we get from CrossRef.
     """
 
-    if "journal" in bibtex_dict:
-        bibtex_dict["journal"] = bibtex_dict["journal"].replace(
+    text_fields = [
+        "title", "booktitle", "journal", "publisher", "series",
+        "abstract", "note", "address", "organization", "school",
+        "institution", "howpublished"
+    ]
+
+    for text_field in text_fields:
+        if text_field not in bibtex_dict:
+            continue
+
+        bibtex_dict[text_field] = bibtex_dict[text_field].replace(
             r"{\&}amp$\mathsemicolon$", r"\&"
         )
-        bibtex_dict["journal"] = bibtex_dict["journal"].replace(
+        bibtex_dict[text_field] = bibtex_dict[text_field].replace(
             r"&amp;", r"\&"
         )
 
