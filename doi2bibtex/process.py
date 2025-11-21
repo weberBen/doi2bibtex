@@ -17,6 +17,7 @@ from doi2bibtex.utils import (
     doi_to_url,
     latex_to_unicode,
     remove_accented_characters,
+    latex_to_unicode,
 )
 
 
@@ -44,6 +45,49 @@ def preprocess_identifier(identifier: str) -> str:
     return identifier
 
 
+def clean_html_entities(bibtex_dict: dict) -> dict:
+    """
+    Decode HTML entities in all text fields of a BibTeX entry.
+
+    APIs may return text with HTML entities (e.g., &amp; instead of &).
+    This function cleans common text fields: title, booktitle, journal,
+    publisher, series, abstract, note, etc.
+    """
+    # List of fields that may contain HTML entities
+    text_fields = [
+        "title", "booktitle", "journal", "publisher", "series",
+        "abstract", "note", "address", "organization", "school",
+        "institution", "howpublished"
+    ]
+
+    for field in text_fields:
+        if field in bibtex_dict and bibtex_dict[field]:
+            bibtex_dict[field] = latex_to_unicode(bibtex_dict[field])
+
+    return bibtex_dict
+
+def first_valid_word(sentence):
+    """
+    Returns the first word from the sentence with:
+    - Strictly more than 3 letters (>= 4 letters)
+    - No apostrophe
+    """
+    if not sentence:
+        return sentence
+    
+    words = sentence.split()
+    
+    for word in words:
+        # Clean punctuation at start/end (keep only letters)
+        clean_word = ''.join(c for c in word if c.isalpha() or c == "'")
+        
+        # Check conditions
+        if len(clean_word) > 3 and "'" not in clean_word:
+            return clean_word.lower()
+    
+    # If no valid word found
+    return None
+
 def postprocess_bibtex(
     bibtex_dict: dict,
     identifier: str,
@@ -52,6 +96,9 @@ def postprocess_bibtex(
     """
     Post-process a BibTeX entry and apply a series of fixes and tweaks.
     """
+
+    # Clean HTML entities in all text fields
+    bibtex_dict = clean_html_entities(bibtex_dict)
 
     # Fix broken ampersand in A&A journal name
     bibtex_dict = fix_broken_ampersand(bibtex_dict)
@@ -275,7 +322,18 @@ def generate_citekey(bibtex_dict: dict, delim: str = "_") -> dict:
         lastname = "".join([_.title() for _ in von]) + lastname
 
     # Combine the name and year to get the citekey
-    citekey = f"{lastname}{delim}{bibtex_dict['year']}"
+    # Use 'NODATE' if year is missing or empty
+
+    citekey = f"{lastname}"
+
+    year = bibtex_dict.get('year', '')
+    if year:
+        citekey += f"{delim}{year}"
+    
+    title = bibtex_dict.get('title', '')
+    title_word = first_valid_word(title)
+    if title:
+        citekey += f"{delim}{title_word}"
 
     # Update the citekey of the BibTeX entry
     bibtex_dict["ID"] = citekey

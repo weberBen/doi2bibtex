@@ -8,6 +8,7 @@ Utility functions.
 
 from pylatexenc.latex2text import LatexNodes2Text
 from unidecode import unidecode
+import html
 
 import urllib.parse
 
@@ -32,6 +33,14 @@ def latex_to_unicode(text: str) -> str:
     """
     return str(LatexNodes2Text(math_mode='verbatim').latex_to_text(text))
 
+def latex_to_unicode(text: dict) -> dict:
+    """
+    Convert Html-escaped to Unicode.
+    """
+    try:
+        return html.unescape(text)
+    except:
+        return text
 
 def remove_accented_characters(string: str) -> str:
     """
