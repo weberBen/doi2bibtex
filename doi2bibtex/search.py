@@ -8,6 +8,8 @@ Methods for searching papers by title using various APIs.
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Tuple
+import html
+import re
 
 import requests
 
@@ -17,6 +19,43 @@ from doi2bibtex.config import Configuration
 # -----------------------------------------------------------------------------
 # DEFINITIONS
 # -----------------------------------------------------------------------------
+
+def _unescape_html_entities(text: str) -> str:
+    """
+    Clean text by decoding HTML entities and converting LaTeX to Unicode.
+
+    APIs may return text with:
+    - HTML entities (e.g., &amp; -> &, &lt; -> <)
+    - LaTeX commands (e.g., {\bf text} -> text, $\approx$ -> ≈)
+
+    This function handles both conversions for cleaner display.
+    """
+    if not text:
+        return text
+
+    try:
+        # First decode HTML entities
+        text = html.unescape(text)
+
+        # Pre-process problematic LaTeX commands that pylatexenc can't handle
+        # Remove \href{url}{text} -> text
+        text = re.sub(r'\\href\{[^}]*\}\{([^}]*)\}', r'\1', text)
+        # Remove lone URLs in \href
+        text = re.sub(r'\\href\{([^}]*)\}', r'\1', text)
+
+        text = re.sub(r'\{\\bf\s+([^}]+)\}', r'\1', text)  # {\bf text}
+        text = re.sub(r'\\bf\s+', '', text)  # \bf
+        text = re.sub(r'\{\\it\s+([^}]+)\}', r'\1', text)  # {\it text}
+        text = re.sub(r'\\it\s+', '', text)  # \it
+        # Remove simple math mode $ $
+        text = re.sub(r'\$([^$]+)\$', r'\1', text)
+        # Remove backslashes before common characters
+        text = re.sub(r'\\([%&_#])', r'\1', text)
+    except:
+        pass
+
+    return text
+
 
 def _sanitize_title_for_openalex(title: str) -> str:
     """
@@ -144,11 +183,11 @@ def search_openalex(title: str, config: Configuration, limit: int = 10) -> List[
 
             result = {
                 "doi": identifier,
-                "title": item.get("title", ""),
+                "title": _unescape_html_entities(item.get("title", "")),
                 "authors": authors,
                 "year": str(year) if year else "",
                 "journal": venue,
-                "abstract": abstract,
+                "abstract": _unescape_html_entities(abstract),
                 "publisher": publisher,
                 "type": pub_type
             }
@@ -182,13 +221,16 @@ def search_crossref(title: str, limit: int = 10) -> List[Dict[str, Any]]:
     results = []
     if "message" in data and "items" in data["message"]:
         for item in data["message"]["items"]:
+            title = item.get("title", [""])[0] if item.get("title") else ""
+            abstract = item.get("abstract", "")
+
             result = {
                 "doi": item.get("DOI", ""),
-                "title": item.get("title", [""])[0] if item.get("title") else "",
+                "title": _unescape_html_entities(title),
                 "authors": item.get("author", []),  # CrossRef format already correct
                 "year": "",
                 "journal": item.get("container-title", [""])[0] if item.get("container-title") else "",
-                "abstract": item.get("abstract", ""),
+                "abstract": _unescape_html_entities(abstract),
                 "publisher": item.get("publisher", ""),
                 "type": item.get("type", "")
             }
@@ -280,11 +322,11 @@ def search_semanticscholar(title: str, config: Configuration, limit: int = 10) -
 
             result = {
                 "doi": identifier,
-                "title": item.get("title", ""),
+                "title": _unescape_html_entities(item.get("title", "")),
                 "authors": authors,
                 "year": str(item.get("year", "")) if item.get("year") else "",
                 "journal": venue,
-                "abstract": item.get("abstract", ""),
+                "abstract": _unescape_html_entities(item.get("abstract", "")),
                 "publisher": publisher,
                 "type": pub_type
             }
