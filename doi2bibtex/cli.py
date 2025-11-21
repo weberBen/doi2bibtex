@@ -33,7 +33,7 @@ def parse_cli_args(args: Any = None) -> Namespace:
         "identifier",
         metavar="IDENTIFIER",
         nargs='?',
-        help="Identifier to resolve (DOI or arXiv ID).",
+        help="Identifier to resolve (DOI or arXiv ID). Optional positional argument. If not provided, enters interactive console mode.",
     )
     parser.add_argument(
         "--plain",
