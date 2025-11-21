@@ -32,12 +32,6 @@ Follow these instructions to get started with `doi2bibtex`:
 
 ### 🤓 Installation
 
-You can simply `pip`-install the package using:
-
-```bash
-pip install doi2bibtex
-```
-
 You can clone the repository and install the package locally:
 
 ```bash
