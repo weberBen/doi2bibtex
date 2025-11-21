@@ -72,11 +72,11 @@ class ResultsControl(UIControl):
 
             title = result.get("title", "")
             identifier = result.get("doi", "")
-            year = result.get("year", "✗")
-            journal = result.get("journal", "✗")
+            year = result.get("year", "") or "✗"
+            journal = result.get("journal", "") or "✗"
             authors = format_authors(result.get("authors", []), max_authors=3)
-            pub_type = result.get("type", "✗") 
-            publisher = result.get("publisher", "✗")
+            pub_type = result.get("type", "") or "✗"
+            publisher = result.get("publisher", "") or "✗"
             source = result.get("source")
 
             # Truncate long fields
@@ -139,10 +139,10 @@ def show_abstract_popup(result: Dict[str, Any], console: Any) -> None:
     # Extract all paper info
     title = result["title"]
     identifier = result["doi"]
-    year = result.get("year", "✗")
-    journal = result.get("journal", "✗")
-    pub_type = result.get("type", "✗")
-    publisher = result.get("publisher", "✗")
+    year = result.get("year", "") or "✗"
+    journal = result.get("journal", "") or "✗"
+    pub_type = result.get("type", "") or "✗"
+    publisher = result.get("publisher", "") or "✗"
     source = result.get("source")
     authors = format_authors(result.get("authors", []), max_authors=10)  # Show more authors in detail view
     raw_abstract = result.get("abstract", "")
