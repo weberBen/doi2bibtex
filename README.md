@@ -35,7 +35,7 @@ Follow these instructions to get started with `doi2bibtex`:
 You can clone the repository and install the package locally:
 
 ```bash
-git clone https://github.com/timothygebhard/doi2bibtex.git
+git clone https://github.com/weberBen/doi2bibtex.git
 cd doi2bibtex
 pip install .
 ```
