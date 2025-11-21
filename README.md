@@ -7,6 +7,8 @@
 <a href="https://github.com/timothygebhard/doi2bibtex/actions/workflows/tests.yaml"><img src="https://github.com/timothygebhard/doi2bibtex/actions/workflows/tests.yaml/badge.svg?branch=main" alt="Test status"></a>
 </p>
 
+> ⚠️ This is a modified fork of [doi2bibtex](https://github.com/timothygebhard/doi2bibtex) that fixes arXiv processing, some BibTeX entries formatting, and citekey generation. It also adds new features: interactive console mode, title-based search, OCR support, and multi-source search.
+
 **doi2bibtex** is a small Python package that can be used to resolve DOIs (and other identifiers) into a BibTeX entry and format them according to a customizable set of rules (see below for a full list of features). 
 
 <p align="center">
@@ -36,7 +38,7 @@ You can simply `pip`-install the package using:
 pip install doi2bibtex
 ```
 
-Alternatively, you can also clone the repository and install the package locally:
+You can clone the repository and install the package locally:
 
 ```bash
 git clone https://github.com/timothygebhard/doi2bibtex.git
@@ -44,6 +46,7 @@ cd doi2bibtex
 pip install .
 ```
 
+⚠️ Note that `pip install doi2bibtex` installs the original [doi2bibtex](https://github.com/timothygebhard/doi2bibtex), not this modified fork.
 
 
 ### 🔑 Setting up an API key for ADS
