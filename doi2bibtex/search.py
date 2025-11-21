@@ -18,6 +18,22 @@ from doi2bibtex.config import Configuration
 # DEFINITIONS
 # -----------------------------------------------------------------------------
 
+def _sanitize_title_for_openalex(title: str) -> str:
+    """
+    Sanitize title for OpenAlex API filter parameter.
+
+    OpenAlex filter syntax reserves commas as separators, causing 400 errors
+    when present in title.search values. Remove commas and other problematic
+    characters that could interfere with the query syntax.
+
+    See: https://github.com/ropensci/openalexR/issues/254
+    """
+    # Remove commas and other reserved characters that cause API errors
+    # Keep most punctuation (periods, hyphens, colons) as they're typically fine
+    sanitized = title.replace(",", "")
+    return sanitized
+
+
 def search_openalex(title: str, config: Configuration, limit: int = 10) -> List[Dict[str, Any]]:
     """
     Search for papers by title using OpenAlex API.
@@ -31,9 +47,12 @@ def search_openalex(title: str, config: Configuration, limit: int = 10) -> List[
     """
 
     # Query OpenAlex API
+    # Sanitize title to avoid API errors with reserved characters (e.g., commas)
+    sanitized_title = _sanitize_title_for_openalex(title)
+
     url = "https://api.openalex.org/works"
     params = {
-        "filter": f"title.search:{title}",
+        "filter": f"title.search:{sanitized_title}",
         "per_page": limit,
     }
 
