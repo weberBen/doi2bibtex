@@ -42,7 +42,7 @@ class Configuration:
         self.openalex_email: str = ""
         self.semantic_scholar_api_key: str = ""
         self.search_sources: List[str] = ["openalex", "crossref"]
-        self.merge_search_results: bool = True
+        self.merge_search_results: bool = False
 
         # Load the configuration from the config file
         self.load_from_yaml_file()
