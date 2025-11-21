@@ -52,6 +52,7 @@ setup(
         "pyperclip",
         "lazy_loader",
         "Pillow",
+        "pylatexenc",
     ],
     extras_require={
         "develop": [

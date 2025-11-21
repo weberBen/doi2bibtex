@@ -12,6 +12,7 @@ import html
 import re
 
 import requests
+from pylatexenc.latex2text import LatexNodes2Text
 
 from doi2bibtex.config import Configuration
 
@@ -43,14 +44,16 @@ def _unescape_html_entities(text: str) -> str:
         # Remove lone URLs in \href
         text = re.sub(r'\\href\{([^}]*)\}', r'\1', text)
 
-        text = re.sub(r'\{\\bf\s+([^}]+)\}', r'\1', text)  # {\bf text}
-        text = re.sub(r'\\bf\s+', '', text)  # \bf
-        text = re.sub(r'\{\\it\s+([^}]+)\}', r'\1', text)  # {\it text}
-        text = re.sub(r'\\it\s+', '', text)  # \it
-        # Remove simple math mode $ $
-        text = re.sub(r'\$([^$]+)\$', r'\1', text)
-        # Remove backslashes before common characters
-        text = re.sub(r'\\([%&_#])', r'\1', text)
+        # Then convert LaTeX to Unicode text
+        try:
+            latex_converter = LatexNodes2Text(
+                keep_braced_groups=False,
+                strict_latex_spaces=False
+            )
+            text = latex_converter.latex_to_text(text)
+        except Exception:
+            pass
+
     except:
         pass
 
