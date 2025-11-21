@@ -10,9 +10,8 @@
 **doi2bibtex** is a small Python package that can be used to resolve DOIs (and other identifiers) into a BibTeX entry and format them according to a customizable set of rules (see below for a full list of features). 
 
 <p align="center">
-   <img src="https://timothygebhard.de/files/d2b.gif?" width="640" alt="A GIF showing how to use doi2bibtex in the command line">
+   <img src="./assets/demo.gif" width="600" alt="A GIF showing how to use doi2bibtex in the command line">
 </p>
-
 
 Most features of **doi2bibtex** are availabe in other tools. 
 For example, you can chain together [doi2bib](https://www.doi2bib.org) with [bibtool](https://github.com/ge-ne/bibtool) or [bibtex-tidy](https://github.com/FlamingTempura/bibtex-tidy) and recover most of the functionality in this package (and some of these tools are actually used under the hood). 
@@ -110,6 +109,23 @@ The console also supports pasting images directly, using OCR ([RapidOCR](https:/
 **Note:** The image is processed only to be converted as plain text. It does not automatically locate the title within a full page. Ensure your image is cropped to focus on the title area.
 While automatic title detection is technically feasible ([GROBID](https://github.com/kermitt2/grobid), [VILA](https://github.com/NVlabs/VILA), [CERMINE](https://github.com/CeON/CERMINE), [Moondream2](https://huggingface.co/vikhyatk/moondream2), [Qwen3-VL 2B](https://github.com/QwenLM/Qwen3-VL)), it would require significant computational resources without providing proportional benefits for this project's use case.
 
+### 🌐 Multi-source search
+
+**doi2bibtex** uses multiple academic search APIs to find papers by title. By default, it queries three sources in parallel and merges the results:
+
+1. **OpenAlex** (default)
+2. **CrossRef**
+3. **Semantic Scholar**
+
+Use the config file to select desired endpoint (default: `search_sources: ["openalex", "crossref"]`)
+
+#### Search modes
+
+The search system can operate in two modes:
+
+- **Sequential mode** (default): Tries sources in order until results are found (`merge_search_results: false` in the config)
+- **Parallel mode** : Queries all enabled sources simultaneously, then interleaves results (1st from each source, then 2nd from each, etc.) and removes duplicates by DOI
+
 
 ### ⚙️ Changing the default configuration
 
@@ -132,6 +148,10 @@ remove_fields:                  # Remove undesired fields (e.g., keywords) from 
 remove_url_if_doi: true         # Remove the `url` field if it is redundant with the `doi` field
 resolve_adsurl: true            # Query ADS to resolve the `adsurl` field, requires API token
 update_arxiv_if_doi: true       # Update arXiv entries with DOI information, if available ("related DOI")
+search_sources: ["openalex", "crossref", "semanticscholar"] # Sources to query when searching articles by title
+merge_search_results: false # If true, combines results from all sources; if false, uses sources sequentially until a match is found
+semantic_scholar_api_key: "" # Semantic Scholar API if needed
+openalex_email: "" # OpenAlex email if needed
 ```
 
 
