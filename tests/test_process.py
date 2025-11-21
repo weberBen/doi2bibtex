@@ -78,7 +78,7 @@ def test__postprocess_bibtex(monkeypatch: pytest.MonkeyPatch) -> None:
         "url": "https://doi.org/10.1103%2Fphysrevd.100.063015",
         "doi": "10.1103/physrevd.100.063015",
         "ENTRYTYPE": "article",
-        "ID": "Gebhard_2019",
+        "ID": "Gebhard_2019_convolutionnal",
     }
 
     assert not DeepDiff(
