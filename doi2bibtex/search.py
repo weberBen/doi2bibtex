@@ -362,6 +362,14 @@ def _deduplicate_by_doi(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return deduplicated
 
 
+def _filter_valid_results(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Filter out results without identifier or title"""
+    return [
+        r for r in results
+        if r.get("doi") and r.get("title")
+    ]
+
+
 def _interleave_results(results_by_source: Dict[str, List[Dict[str, Any]]], source_order: List[str], limit: int) -> List[Dict[str, Any]]:
     """Interleave results from multiple sources following the specified order"""
     interleaved = []
@@ -418,7 +426,9 @@ def search_papers(title: str, config: Configuration, limit: int = 10) -> Tuple[L
             try:
                 results = search_functions[source]()
                 if results:
-                    return results, warnings
+                    # Filter out results without identifier or title
+                    filtered = _filter_valid_results(results)
+                    return filtered, warnings
             except Exception as e:
                 warnings.append(f"{source}: {str(e)}")
         return [], warnings
@@ -450,4 +460,7 @@ def search_papers(title: str, config: Configuration, limit: int = 10) -> Tuple[L
     # Deduplicate by DOI
     deduplicated = _deduplicate_by_doi(interleaved)
 
-    return deduplicated, warnings
+    # Filter out results without identifier or title
+    filtered = _filter_valid_results(deduplicated)
+
+    return filtered, warnings

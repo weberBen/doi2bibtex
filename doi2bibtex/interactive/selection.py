@@ -67,9 +67,11 @@ class ResultsControl(UIControl):
             is_selected = (i == self.current_index)
             prefix = "► " if is_selected else "  "
             style = "class:selected" if is_selected else ""
+            source_style = "class:selected italic" if is_selected else "italic"
+            title_style = "class:selected fg:#fff176" if is_selected else "fg:cyan"
 
-            title = result.get("title", "No title") or "No title"
-            identifier = result.get("doi", "No identifier") or "No identifier"
+            title = result.get("title", "")
+            identifier = result.get("doi", "")
             year = result.get("year", "✗")
             journal = result.get("journal", "✗")
             authors = format_authors(result.get("authors", []), max_authors=3)
@@ -83,8 +85,11 @@ class ResultsControl(UIControl):
             if journal != "✗" and len(journal) > 40:
                 journal = journal[:37] + "..."
 
-            lines.append([(style, f"{prefix}[{i+1}] {title}")])
-            lines.append([(style, f"    Identifier: {identifier} (from {source})")])
+            lines.append([(title_style, f"{prefix}[{i+1}] {title}")])
+            lines.append([
+                (f"{style} bold", f"    Identifier: {identifier} "),
+                (source_style, f"(from {source})")
+            ])
             lines.append([(style, f"    Authors: {authors}")])
             lines.append([(style, f"    Year: {year}, Journal: {journal}")])
             lines.append([(style, f"    Type: {pub_type}, Publisher: {publisher}")])
@@ -132,9 +137,9 @@ class ResultsControl(UIControl):
 def show_abstract_popup(result: Dict[str, Any], console: Any) -> None:
     """Display the paper information and abstract for a result"""
     # Extract all paper info
-    title = result.get("title", "No title") or "No title"
-    identifier = result.get("doi", "✗")
-    year = result.get("year", "")
+    title = result["title"]
+    identifier = result["doi"]
+    year = result.get("year", "✗")
     journal = result.get("journal", "✗")
     pub_type = result.get("type", "✗")
     publisher = result.get("publisher", "✗")
