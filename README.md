@@ -123,7 +123,7 @@ Use the config file to select desired endpoint (default: `search_sources: ["open
 
 The search system can operate in two modes:
 
-- **Parallel mode** (default `merge_search_results: false` in the config): Queries all enabled sources simultaneously, then interleaves results (1st from each source, then 2nd from each, etc.) and removes duplicates by DOI
+- **Parallel mode** (default `merge_search_results: true` in the config): Queries all enabled sources simultaneously, then interleaves results (1st from each source, then 2nd from each, etc.) and removes duplicates by DOI
 - **Sequential mode**: Tries sources in order until results are found
 
 
