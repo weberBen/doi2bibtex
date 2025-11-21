@@ -18,6 +18,7 @@ from doi2bibtex.utils import (
     latex_to_unicode,
     remove_accented_characters,
     latex_to_unicode,
+    html_to_unicode,
 )
 
 
@@ -62,7 +63,7 @@ def clean_html_entities(bibtex_dict: dict) -> dict:
 
     for field in text_fields:
         if field in bibtex_dict and bibtex_dict[field]:
-            bibtex_dict[field] = latex_to_unicode(bibtex_dict[field])
+            bibtex_dict[field] = html_to_unicode(bibtex_dict[field])
 
     return bibtex_dict
 
