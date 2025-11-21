@@ -57,11 +57,12 @@ class ResultsControl(UIControl):
 
             title = result.get("title", "No title") or "No title"
             identifier = result.get("doi", "No identifier") or "No identifier"
-            year = result.get("year", "") or "✗"
-            journal = result.get("journal", "") or "✗"
+            year = result.get("year", "✗")
+            journal = result.get("journal", "✗")
             authors = format_authors(result.get("authors", []), max_authors=3)
-            pub_type = result.get("type", "") or "✗"
-            publisher = result.get("publisher", "") or "✗"
+            pub_type = result.get("type", "✗") 
+            publisher = result.get("publisher", "✗")
+            source = result.get("source")
 
             # Truncate long fields
             if publisher != "✗" and len(publisher) > 40:
@@ -70,7 +71,7 @@ class ResultsControl(UIControl):
                 journal = journal[:37] + "..."
 
             lines.append([(style, f"{prefix}[{i+1}] {title}")])
-            lines.append([(style, f"    Identifier: {identifier}")])
+            lines.append([(style, f"    Identifier: {identifier} (from {source})")])
             lines.append([(style, f"    Authors: {authors}")])
             lines.append([(style, f"    Year: {year}, Journal: {journal}")])
             lines.append([(style, f"    Type: {pub_type}, Publisher: {publisher}")])
@@ -119,11 +120,12 @@ def show_abstract_popup(result: Dict[str, Any], console: Any) -> None:
     """Display the paper information and abstract for a result"""
     # Extract all paper info
     title = result.get("title", "No title") or "No title"
-    identifier = result.get("doi", "") or "✗"
-    year = result.get("year", "") or "✗"
-    journal = result.get("journal", "") or "✗"
-    pub_type = result.get("type", "") or "✗"
-    publisher = result.get("publisher", "") or "✗"
+    identifier = result.get("doi", "✗")
+    year = result.get("year", "")
+    journal = result.get("journal", "✗")
+    pub_type = result.get("type", "✗")
+    publisher = result.get("publisher", "✗")
+    source = result.get("source")
     authors = format_authors(result.get("authors", []), max_authors=10)  # Show more authors in detail view
     raw_abstract = result.get("abstract", "")
 
@@ -132,6 +134,7 @@ def show_abstract_popup(result: Dict[str, Any], console: Any) -> None:
     # First panel: Paper Information
     info_content = f"""[bold]Title:[/bold] {title}
 [bold]Identifier:[/bold] {identifier}
+[bold]Source:[/bold] {source}
 [bold]Authors:[/bold] {authors}
 [bold]Year:[/bold] {year}
 [bold]Journal:[/bold] {journal}
