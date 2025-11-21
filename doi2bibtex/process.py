@@ -17,7 +17,6 @@ from doi2bibtex.utils import (
     doi_to_url,
     latex_to_unicode,
     remove_accented_characters,
-    latex_to_unicode,
 )
 
 

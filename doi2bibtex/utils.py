@@ -8,7 +8,6 @@ Utility functions.
 
 from pylatexenc.latex2text import LatexNodes2Text
 from unidecode import unidecode
-import html
 
 import urllib.parse
 

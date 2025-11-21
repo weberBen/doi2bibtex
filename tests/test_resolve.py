@@ -103,14 +103,14 @@ def test__resolve_doi(monkeypatch: pytest.MonkeyPatch) -> None:
         resolve_doi("10.1088/1742-6596/898/7/072029"),
         {
             "journal": "Journal of Physics: Conference Series",
-            "title": "Software Quality Control at Belle II",
+            "title": "Software Quality Control at Belle {II}",
             "author": (
                 "M Ritter and T Kuhr and T Hauth and T Gebard and "
                 "M Kristof and C Pulvermacher and"
             ),
             "pages": "072029",
             "volume": "898",
-            "publisher": "IOP Publishing",
+            "publisher": "{IOP} Publishing",
             "month": "oct",
             "year": "2017",
             "url": "https://doi.org/10.1088%2F1742-6596%2F898%2F7%2F072029",
