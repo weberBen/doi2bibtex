@@ -116,24 +116,48 @@ class ResultsControl(UIControl):
 
 
 def show_abstract_popup(result: Dict[str, Any], console: Any) -> None:
-    """Display the abstract for a result"""
-    title = result.get("title", "No title")
+    """Display the paper information and abstract for a result"""
+    # Extract all paper info
+    title = result.get("title", "No title") or "No title"
+    identifier = result.get("doi", "") or "✗"
+    year = result.get("year", "") or "✗"
+    journal = result.get("journal", "") or "✗"
+    pub_type = result.get("type", "") or "✗"
+    publisher = result.get("publisher", "") or "✗"
+    authors = format_authors(result.get("authors", []), max_authors=10)  # Show more authors in detail view
     raw_abstract = result.get("abstract", "")
 
     console.print("\n")
+
+    # First panel: Paper Information
+    info_content = f"""[bold]Title:[/bold] {title}
+[bold]Identifier:[/bold] {identifier}
+[bold]Authors:[/bold] {authors}
+[bold]Year:[/bold] {year}
+[bold]Journal:[/bold] {journal}
+[bold]Type:[/bold] {pub_type}
+[bold]Publisher:[/bold] {publisher}"""
+
+    console.print(Panel(
+        info_content,
+        title="[cyan bold]Paper Information[/cyan bold]",
+        border_style="cyan"
+    ))
+
+    console.print("")  # Spacing between panels
+
+    # Second panel: Abstract
     if raw_abstract:
         abstract = parse_jats_text(raw_abstract)
         console.print(Panel(
             abstract,
             title=f"[cyan bold]Abstract[/cyan bold]",
-            subtitle=f"[dim]{title}[/dim]",
             border_style="cyan"
         ))
     else:
         console.print(Panel(
             "[red]No abstract available[/red]",
             title=f"[cyan bold]Abstract[/cyan bold]",
-            subtitle=f"[dim]{title}[/dim]",
             border_style="cyan"
         ))
 
