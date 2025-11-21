@@ -39,7 +39,7 @@ class Configuration:
         self.remove_url_if_doi: bool = True
         self.resolve_adsurl: bool = True
         self.update_arxiv_if_doi: bool = True
-        self.semantic_scholar_api_key: str = ""
+        self.openalex_email: str = ""
 
         # Load the configuration from the config file
         self.load_from_yaml_file()

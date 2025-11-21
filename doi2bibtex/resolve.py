@@ -155,69 +155,76 @@ def resolve_identifier(identifier: str, config: Configuration, raise_on_error=Fa
 
 def resolve_title(title: str, config: Configuration, limit: int = 10) -> List[Dict[str, Any]]:
     """
-    Search for papers by title using Semantic Scholar API.
+    Search for papers by title using OpenAlex API.
     Returns a list of results with title, DOI, authors, year, journal, and abstract.
 
-    To avoid rate limiting, add your API key to ~/.doi2bibtex/config.yaml:
-    semantic_scholar_api_key: "your_key_here"
+    Optionally add your email to ~/.doi2bibtex/config.yaml for polite pool (faster):
+    openalex_email: "your@email.com"
 
-    Get a free API key at: https://www.semanticscholar.org/product/api
+    OpenAlex API: https://docs.openalex.org
+    Rate limit: 100,000 requests/day, no API key required
     """
 
-    # Query Semantic Scholar API
-    url = "https://api.semanticscholar.org/graph/v1/paper/search"
+    # Query OpenAlex API
+    url = "https://api.openalex.org/works"
     params = {
-        "query": title,
-        "limit": limit,
-        "fields": "title,authors,year,venue,abstract,externalIds,publicationTypes,publicationVenue"
+        "filter": f"title.search:{title}",
+        "per_page": limit,
     }
 
-    # Add API key if available (for higher rate limits)
-    headers = {}
-    if config.semantic_scholar_api_key:
-        headers["x-api-key"] = config.semantic_scholar_api_key
+    # Add email for polite pool (recommended for better rate limits)
+    if config.openalex_email:
+        params["mailto"] = config.openalex_email
 
-    r = requests.get(url, params=params, headers=headers, timeout=10)
-
-    # Handle rate limiting with better error message
-    if r.status_code == 429:
-        raise RuntimeError(
-            "Semantic Scholar API rate limit exceeded. "
-            "Get a free API key at https://www.semanticscholar.org/product/api "
-            "and add it to ~/.doi2bibtex/config.yaml with key: semantic_scholar_api_key"
-        )
-
+    r = requests.get(url, params=params, timeout=10)
     r.raise_for_status()
     data = r.json()
 
     results = []
-    if "data" in data:
-        for item in data["data"]:
+    if "results" in data:
+        for item in data["results"]:
             # Get identifier (prefer DOI, fallback to ArXiv)
-            external_ids = item.get("externalIds", {})
-            identifier = external_ids.get("DOI", "") or external_ids.get("ArXiv", "")
+            ids = item.get("ids", {})
+            doi = ids.get("doi", "")
+            if doi and doi.startswith("https://doi.org/"):
+                doi = doi.replace("https://doi.org/", "")
 
-            # Get venue/journal name
-            venue = item.get("venue", "")
-            if not venue and item.get("publicationVenue"):
-                venue = item.get("publicationVenue", {}).get("name", "")
+            # Try to extract arXiv ID from OpenAlex ID or other fields
+            arxiv_id = ""
+            openalex_id = ids.get("openalex", "")
+            if "arxiv" in openalex_id.lower():
+                # Extract arXiv ID from OpenAlex ID if present
+                arxiv_id = openalex_id.split("/")[-1]
+
+            identifier = doi or arxiv_id
+
+            # Handle arXiv DOIs
+            if identifier and "arxiv." in identifier.lower():
+                arxiv_identifier = identifier.split(".")
+                identifier = f'{arxiv_identifier[-2]}.{arxiv_identifier[-1]}'
+
+            # Get venue/journal name from primary_location
+            venue = ""
+            primary_location = item.get("primary_location", {})
+            if primary_location and primary_location.get("source"):
+                venue = primary_location.get("source", {}).get("display_name", "")
 
             # Get publisher
             publisher = ""
-            if item.get("publicationVenue"):
-                publisher = item.get("publicationVenue", {}).get("publisher", "")
+            if primary_location and primary_location.get("source"):
+                publisher = primary_location.get("source", {}).get("host_organization_name", "")
 
             # Get type
-            pub_types = item.get("publicationTypes", [])
-            pub_type = pub_types[0] if pub_types else ""
+            pub_type = item.get("type", "")
 
-            # Transform authors from Semantic Scholar format to CrossRef format
-            # Semantic Scholar: [{"name": "John Doe", "authorId": "..."}, ...]
+            # Transform authors from OpenAlex format to CrossRef format
+            # OpenAlex: [{"author": {"display_name": "John Doe"}}, ...]
             # CrossRef: [{"given": "John", "family": "Doe"}, ...]
-            raw_authors = item.get("authors", [])
+            raw_authorships = item.get("authorships", [])
             authors = []
-            for author in raw_authors:
-                name = author.get("name", "")
+            for authorship in raw_authorships:
+                author_obj = authorship.get("author", {})
+                name = author_obj.get("display_name", "")
                 if name:
                     # Split name into given and family
                     parts = name.split()
@@ -229,13 +236,35 @@ def resolve_title(title: str, config: Configuration, limit: int = 10) -> List[Di
                         # Single name, treat as family name
                         authors.append({"family": name})
 
+            # Get year
+            year = item.get("publication_year", "")
+
+            # Abstract: OpenAlex uses inverted index format, reconstruct it
+            abstract = ""
+            abstract_inv = item.get("abstract_inverted_index", {})
+            if abstract_inv:
+                # Find max position to create array
+                max_pos = 0
+                for positions in abstract_inv.values():
+                    if positions:
+                        max_pos = max(max_pos, max(positions))
+
+                # Create word array and fill it
+                words = [""] * (max_pos + 1)
+                for word, positions in abstract_inv.items():
+                    for pos in positions:
+                        words[pos] = word
+
+                # Join words
+                abstract = " ".join(words)
+
             result = {
                 "doi": identifier,
                 "title": item.get("title", ""),
                 "authors": authors,
-                "year": str(item.get("year", "")) if item.get("year") else "",
+                "year": str(year) if year else "",
                 "journal": venue,
-                "abstract": item.get("abstract", ""),
+                "abstract": abstract,
                 "publisher": publisher,
                 "type": pub_type
             }

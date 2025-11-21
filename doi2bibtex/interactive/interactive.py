@@ -310,7 +310,7 @@ def resolve_user_input(console=None, search_mode=None, input_text=None, config=N
     console.print(f"\n[cyan]Searching for: {input_text}[/cyan]\n")
     try:
         with console.status("Searching..."):
-            results = resolve_title(input_text)
+            results = resolve_title(input_text, config)
 
         if not results:
             console.print(f"\n[yellow]No results found. Try a different search term.[/yellow]\n")

@@ -55,18 +55,18 @@ class ResultsControl(UIControl):
             prefix = "► " if is_selected else "  "
             style = "class:selected" if is_selected else ""
 
-            title = result.get("title", "No title")
-            identifier = result.get("doi", "No identifier")
-            year = result.get("year", "N/A")
-            journal = result.get("journal", "N/A")
+            title = result.get("title", "No title") or "No title"
+            identifier = result.get("doi", "No identifier") or "No identifier"
+            year = result.get("year", "") or "✗"
+            journal = result.get("journal", "") or "✗"
             authors = format_authors(result.get("authors", []), max_authors=3)
-            pub_type = result.get("type", "N/A")
-            publisher = result.get("publisher", "N/A")
+            pub_type = result.get("type", "") or "✗"
+            publisher = result.get("publisher", "") or "✗"
 
             # Truncate long fields
-            if len(publisher) > 40:
+            if publisher != "✗" and len(publisher) > 40:
                 publisher = publisher[:37] + "..."
-            if len(journal) > 40:
+            if journal != "✗" and len(journal) > 40:
                 journal = journal[:37] + "..."
 
             lines.append([(style, f"{prefix}[{i+1}] {title}")])
