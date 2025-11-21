@@ -17,6 +17,7 @@ from doi2bibtex.interactive import (
     ocr_image,
 )
 from doi2bibtex.resolve import resolve_title
+from doi2bibtex.config import Configuration
 
 
 # -----------------------------------------------------------------------------
@@ -44,7 +45,8 @@ def test__resolve_title(monkeypatch: pytest.MonkeyPatch) -> None:
                     "published": {"date-parts": [[2023]]},
                     "container-title": ["Test Journal"],
                     "abstract": "This is a test abstract.",
-                    "publisher": "Test Publisher"
+                    "publisher": "Test Publisher",
+                    "type": "journal-article"
                 }
             ]
         }
@@ -53,8 +55,13 @@ def test__resolve_title(monkeypatch: pytest.MonkeyPatch) -> None:
     import requests
     monkeypatch.setattr(requests, "get", lambda *args, **kwargs: mock_response)
 
+    # Create a config object
+    config = Configuration()
+    config.search_sources = ["crossref"]  # Only use crossref for this test
+    config.merge_search_results = False
+
     # Test the function
-    results = resolve_title("quantum computing", limit=1)
+    results, warnings = resolve_title("quantum computing", config, limit=1)
 
     assert len(results) == 1
     assert results[0]["doi"] == "10.1234/test.doi"
@@ -63,12 +70,14 @@ def test__resolve_title(monkeypatch: pytest.MonkeyPatch) -> None:
     assert results[0]["journal"] == "Test Journal"
     assert results[0]["abstract"] == "This is a test abstract."
     assert len(results[0]["authors"]) == 2
+    assert isinstance(warnings, list)
 
 
 def test__resolve_title__error(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     Test `resolve_title()` with network error.
-    Note: resolve_title does not catch exceptions, so they propagate.
+    Note: In sequential mode, errors are collected as warnings but don't stop execution.
+    In this test, all sources will fail, resulting in empty results with warnings.
     """
 
     # Mock requests.get to raise an exception
@@ -78,9 +87,15 @@ def test__resolve_title__error(monkeypatch: pytest.MonkeyPatch) -> None:
     import requests
     monkeypatch.setattr(requests, "get", lambda *args, **kwargs: mock_response)
 
-    # Test that the function raises an exception on error
-    with pytest.raises(Exception):
-        resolve_title("test query")
+    # Create a config object
+    config = Configuration()
+    config.search_sources = ["crossref"]
+    config.merge_search_results = False
+
+    # Test that the function returns empty results with warnings
+    results, warnings = resolve_title("test query", config)
+    assert results == []
+    assert len(warnings) > 0  # Should have collected error as warning
 
 
 def test__resolve_title__no_results(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -100,9 +115,15 @@ def test__resolve_title__no_results(monkeypatch: pytest.MonkeyPatch) -> None:
     import requests
     monkeypatch.setattr(requests, "get", lambda *args, **kwargs: mock_response)
 
+    # Create a config object
+    config = Configuration()
+    config.search_sources = ["crossref"]
+    config.merge_search_results = False
+
     # Test the function
-    results = resolve_title("nonexistent paper xyz123")
+    results, warnings = resolve_title("nonexistent paper xyz123", config)
     assert results == []
+    assert isinstance(warnings, list)
 
 
 def test__format_authors() -> None:
