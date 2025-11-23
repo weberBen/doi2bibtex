@@ -28,20 +28,24 @@ from doi2bibtex.utils import unescape_text
 
 def resolve_ads_bibcode(ads_bibcode: str) -> dict:
     """
-    Resolve an ADS bibcode using the ADS API and return the BibTeX.
+    Resolve an ADS bibcode using the ADS API and return the BibTeX with abstract.
+    Uses /bibtexabs endpoint to include abstracts and all authors.
     """
 
     # Get the ADS token (and raise an error if we don't have one)
     token = get_ads_token(raise_on_error=True)
 
-    # Query the ADS API manually
+    # Query the ADS API manually using bibtexabs to include abstract
     r = requests.post(
-        url="https://api.adsabs.harvard.edu/v1/export/bibtex",
+        url="https://api.adsabs.harvard.edu/v1/export/bibtexabs",
         headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         },
-        data=json.dumps({"bibcode": [ads_bibcode]}),
+        data=json.dumps({
+            "bibcode": [ads_bibcode],
+            "maxauthor": 0  # 0 = all authors
+        }),
     )
 
     # Check if we got a 200 response; if not, raise an error
@@ -58,10 +62,10 @@ def resolve_ads_bibcode(ads_bibcode: str) -> dict:
 
     return bibtex_dict
 
-def resolve_arxiv_abstract(identifier: str, bibtex_dict: dict) -> dict:
+def resolve_arxiv_abstract(arxiv_id: str) -> dict:
     # Fetch abstract from arXiv API
     
-    arxiv_api_url = f"https://export.arxiv.org/api/query?id_list={identifier}"
+    arxiv_api_url = f"https://export.arxiv.org/api/query?id_list={arxiv_id}"
     r_arxiv = requests.get(arxiv_api_url, timeout=10)
     r_arxiv.raise_for_status()
 
@@ -76,12 +80,12 @@ def resolve_arxiv_abstract(identifier: str, bibtex_dict: dict) -> dict:
         abstract = summary_elem.text.strip()
         # Clean up the abstract (remove extra whitespace)
         abstract = ' '.join(abstract.split())
-        bibtex_dict['abstract'] = unescape_text(abstract)
+        return unescape_text(abstract)
     
-    return bibtex_dict
+    return ""
 
 
-def resolve_arxiv_id(arxiv_id: str) -> dict:
+def resolve_arxiv_id(arxiv_id: str, fetchAbstract: bool = False) -> dict:
     """
     Resolve an arXiv ID using arxiv2bibtex.org and return the BibTeX
     entry with abstract from arXiv API.
@@ -106,12 +110,15 @@ def resolve_arxiv_id(arxiv_id: str) -> dict:
     # Parse the bibstring to a dict
     bibtex_dict = bibtex_string_to_dict(bibtex_string)
 
+    if fetchAbstract:
+        bibtex_dict["abstract"] = resolve_arxiv_abstract(arxiv_id)
+
     return bibtex_dict
 
 
-def resolve_abstract_doi(identifier: str, bibtex: dict) -> dict:
+def resolve_abstract_doi(doi: str) -> dict:
     # Fetch abstract from CrossRef metadata API
-    metadata_url = f"https://api.crossref.org/works/{identifier}"
+    metadata_url = f"https://api.crossref.org/works/{doi}"
     r_metadata = requests.get(metadata_url, timeout=10)
     r_metadata.raise_for_status()
 
@@ -119,11 +126,11 @@ def resolve_abstract_doi(identifier: str, bibtex: dict) -> dict:
     if "message" in data and "abstract" in data["message"]:
         abstract = data["message"]["abstract"]
         if abstract:
-            bibtex['abstract'] = unescape_text(abstract)
+            return unescape_text(abstract)
 
-    return bibtex
+    return ""
 
-def resolve_doi(doi: str) -> dict:
+def resolve_doi(doi: str, fetchAbstract: bool = False) -> dict:
     """
     Resolve a DOI using the Crossref API and return the BibTeX entry
     """
@@ -138,9 +145,12 @@ def resolve_doi(doi: str) -> dict:
         )
 
     # Parse the response into a dict
-    bibtex = bibtex_string_to_dict(r.text)
+    bibtex_dict = bibtex_string_to_dict(r.text)
 
-    return bibtex
+    if fetchAbstract:
+        bibtex_dict["abstract"] = resolve_abstract_doi(doi)
+
+    return bibtex_dict
 
 
 def resolve_identifier(identifier: str, config: Configuration) -> str:
@@ -150,7 +160,7 @@ def resolve_identifier(identifier: str, config: Configuration) -> str:
     appropriate resolver function, and post-processes the result.
     """
 
-    show_abstract = "abstract" not in config.remove_fields["all"]
+    showAbstract = "abstract" not in config.remove_fields["all"]
     try:
 
         # Remove the "doi:" or "arXiv:" prefix, if present
@@ -158,11 +168,9 @@ def resolve_identifier(identifier: str, config: Configuration) -> str:
 
         # Resolve the identifier to a BibTeX entry (as a dict)
         if is_doi(identifier):
-            bibtex_dict = resolve_doi(identifier)
-            bibtex_dict = resolve_abstract_doi(identifier, bibtex_dict) if show_abstract else bibtex_dict
+            bibtex_dict = resolve_doi(identifier, fetchAbstract=showAbstract)
         elif is_arxiv_id(identifier):
-            bibtex_dict = resolve_arxiv_id(identifier)
-            bibtex_dict = resolve_arxiv_abstract(identifier, bibtex_dict) if show_abstract else bibtex_dict
+            bibtex_dict = resolve_arxiv_id(identifier, fetchAbstract=showAbstract)
         elif is_ads_bibcode(identifier):
             bibtex_dict = resolve_ads_bibcode(identifier)
         elif is_isbn(identifier):
@@ -179,7 +187,7 @@ def resolve_identifier(identifier: str, config: Configuration) -> str:
             "doi" in bibtex_dict
         ):
             identifier = bibtex_dict["doi"]
-            bibtex_dict = resolve_doi(identifier)
+            bibtex_dict = resolve_doi(identifier, fetchAbstract=showAbstract)
 
         # Post-process the BibTeX dict
         bibtex_dict = postprocess_bibtex(bibtex_dict, identifier, config)
