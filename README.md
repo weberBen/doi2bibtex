@@ -46,20 +46,22 @@ pip install .
 
 
 
-### 🔑 Setting up an API key for ADS
+### 🔑 Setting up an API key
+
+You can use an API key either by setting an environment variable and exporting it (`export MY_TOKEN="xxx" d2b`), or by creating a dedicated file in the config directory `~/.doi2bibtex`.
+
+#### ADS
+
+> Environment variable name `ADS_TOKEN` or filename `ads_token`
 
 > [!NOTE]  
 > If you do not want to use ADS, you can disable this feature (which is enabled by default) by setting `resolve_adsurl: false` in your `~/.doi2bibtex/config.yaml` file.
 
 If you want to use the `ads` backend to resolve the `adsurl` field, you need to create an ADS account (if you do not alreay have one) and set up an [API token](https://ui.adsabs.harvard.edu/help/api/) to be able to query ADS. You can actually do this in two different ways:
 
-1. Set the environment variable `ADS_TOKEN` to your API key:
-   ```bash
-   export ADS_TOKEN="your-token";
-   ```
-   Ideally, you should add this line to your `.bashrc` or `.zshrc` file.
+#### Semantic Scholar
 
-2. Create a file `~/.doi2bibtex/ads_token` and put your API key in there.
+> Environment variable name `SEMANTIC_SCHOLAR_API_KEY` or filename `semanticscholar_api_key`
 
 
 ### 💻 Using the command line interface
@@ -150,7 +152,6 @@ resolve_adsurl: true            # Query ADS to resolve the `adsurl` field, requi
 update_arxiv_if_doi: true       # Update arXiv entries with DOI information, if available ("related DOI")
 search_sources: ["openalex", "crossref", "semanticscholar"] # Sources to query when searching articles by title
 merge_search_results: true # If true, combines results from all sources; if false, uses sources sequentially until a match is found
-semantic_scholar_api_key: "" # Semantic Scholar API if needed
 openalex_email: "" # OpenAlex email if needed
 ```
 
