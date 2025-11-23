@@ -7,11 +7,13 @@ Methods for searching papers by title using various APIs.
 # -----------------------------------------------------------------------------
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 import html
 import re
 
 import requests
+import os
+from pathlib import Path
 from pylatexenc.latex2text import LatexNodes2Text
 
 from doi2bibtex.config import Configuration
@@ -248,6 +250,33 @@ def search_crossref(title: str, limit: int = 10) -> List[Dict[str, Any]]:
 
     return results
 
+def get_semanticscholar_apikey(raise_on_error: bool = False) -> Optional[str]:
+    """
+    Get the ADS API token from an environment variable or a file.
+    If `raise_on_error` is True, raise an error if no token is found.
+    This is False by default so that we can also use this function to
+    decide which unit tests to run.
+    """
+
+    # Try to get the ADS token from an environment variable
+    if (token := os.environ.get("SEMANTIC_SCHOLAR_API_KEY")) is not None:
+        return token
+
+    # Try to get the ADS token from a file
+    file_path = Path.home() / ".doi2bibtex" / "semanticscholar_api_key"
+    if file_path.exists():
+        with open(file_path, "r") as f:
+            return f.read().strip()
+
+    # If we get here, we didn't find a token
+    if raise_on_error:
+        raise RuntimeError(
+            "No semanticscholar API key found! Please set the SEMANTIC_SCHOLAR_API_KEY environment "
+            "variable, or create a file at ~/.doi2bibtex/semanticscholar_api_key "
+            "containing your semanticscholar API key."
+        )
+
+    return None
 
 def search_semanticscholar(title: str, config: Configuration, limit: int = 10) -> List[Dict[str, Any]]:
     """
@@ -270,8 +299,10 @@ def search_semanticscholar(title: str, config: Configuration, limit: int = 10) -
 
     # Add API key if available (for higher rate limits)
     headers = {}
-    if config.semantic_scholar_api_key:
-        headers["x-api-key"] = config.semantic_scholar_api_key
+    
+    apikey = get_semanticscholar_apikey(raise_on_error=False)
+    if apikey:
+        headers["x-api-key"] = apikey
 
     r = requests.get(url, params=params, headers=headers, timeout=10)
 

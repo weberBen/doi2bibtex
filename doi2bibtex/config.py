@@ -40,7 +40,6 @@ class Configuration:
         self.resolve_adsurl: bool = True
         self.update_arxiv_if_doi: bool = True
         self.openalex_email: str = ""
-        self.semantic_scholar_api_key: str = ""
         self.search_sources: List[str] = ["openalex", "crossref"]
         self.merge_search_results: bool = True
 
