@@ -51,6 +51,7 @@ def resolve_isbn_with_google_api(isbn: str) -> dict:
     item = items[0]
     title = item["volumeInfo"].get("title", "")
     subtitle = item["volumeInfo"].get("subtitle", "")
+    description = item["volumeInfo"].get("description")
 
     # Manually construct a BibTeX entry
     bibtex_dict = {
@@ -61,6 +62,7 @@ def resolve_isbn_with_google_api(isbn: str) -> dict:
         "publisher": item["volumeInfo"].get("publisher", ""),
         "year": item["volumeInfo"].get("publishedDate", "")[:4],
         "isbn": isbn,
+        "description": description,
     }
 
     # Construct the citekey

@@ -9,6 +9,7 @@ Methods for resolving identifiers to BibTeX entries.
 from bs4 import BeautifulSoup
 
 import json
+import xml.etree.ElementTree as ET
 
 import requests
 
@@ -18,6 +19,7 @@ from doi2bibtex.config import Configuration
 from doi2bibtex.identify import is_ads_bibcode, is_arxiv_id, is_doi, is_isbn
 from doi2bibtex.isbn import resolve_isbn_with_google_api
 from doi2bibtex.process import preprocess_identifier, postprocess_bibtex
+from doi2bibtex.utils import unescape_text
 
 
 # -----------------------------------------------------------------------------
@@ -56,11 +58,33 @@ def resolve_ads_bibcode(ads_bibcode: str) -> dict:
 
     return bibtex_dict
 
+def resolve_arxiv_abstract(identifier: str, bibtex_dict: dict) -> dict:
+    # Fetch abstract from arXiv API
+    
+    arxiv_api_url = f"https://export.arxiv.org/api/query?id_list={identifier}"
+    r_arxiv = requests.get(arxiv_api_url, timeout=10)
+    r_arxiv.raise_for_status()
+
+    # Parse XML response
+    root = ET.fromstring(r_arxiv.text)
+    # Define namespace for arXiv API
+    ns = {'atom': 'http://www.w3.org/2005/Atom'}
+
+    # Extract abstract (called 'summary' in arXiv API)
+    summary_elem = root.find('.//atom:entry/atom:summary', ns)
+    if summary_elem is not None and summary_elem.text:
+        abstract = summary_elem.text.strip()
+        # Clean up the abstract (remove extra whitespace)
+        abstract = ' '.join(abstract.split())
+        bibtex_dict['abstract'] = unescape_text(abstract)
+    
+    return bibtex_dict
+
 
 def resolve_arxiv_id(arxiv_id: str) -> dict:
     """
     Resolve an arXiv ID using arxiv2bibtex.org and return the BibTeX
-    entry.
+    entry with abstract from arXiv API.
     """
 
     # Send a request to arxiv2bibtex.org
@@ -85,9 +109,23 @@ def resolve_arxiv_id(arxiv_id: str) -> dict:
     return bibtex_dict
 
 
+def resolve_abstract_doi(identifier: str, bibtex: dict) -> dict:
+    # Fetch abstract from CrossRef metadata API
+    metadata_url = f"https://api.crossref.org/works/{identifier}"
+    r_metadata = requests.get(metadata_url, timeout=10)
+    r_metadata.raise_for_status()
+
+    data = r_metadata.json()
+    if "message" in data and "abstract" in data["message"]:
+        abstract = data["message"]["abstract"]
+        if abstract:
+            bibtex['abstract'] = unescape_text(abstract)
+
+    return bibtex
+
 def resolve_doi(doi: str) -> dict:
     """
-    Resolve a DOI using the Crossref API and return the BibTeX entry.
+    Resolve a DOI using the Crossref API and return the BibTeX entry
     """
 
     # Send a request to the Crossref API to get the BibTeX entry
@@ -112,6 +150,7 @@ def resolve_identifier(identifier: str, config: Configuration) -> str:
     appropriate resolver function, and post-processes the result.
     """
 
+    show_abstract = "abstract" not in config.remove_fields["all"]
     try:
 
         # Remove the "doi:" or "arXiv:" prefix, if present
@@ -120,8 +159,10 @@ def resolve_identifier(identifier: str, config: Configuration) -> str:
         # Resolve the identifier to a BibTeX entry (as a dict)
         if is_doi(identifier):
             bibtex_dict = resolve_doi(identifier)
+            bibtex_dict = resolve_abstract_doi(identifier, bibtex_dict) if show_abstract else bibtex_dict
         elif is_arxiv_id(identifier):
             bibtex_dict = resolve_arxiv_id(identifier)
+            bibtex_dict = resolve_arxiv_abstract(identifier, bibtex_dict) if show_abstract else bibtex_dict
         elif is_ads_bibcode(identifier):
             bibtex_dict = resolve_ads_bibcode(identifier)
         elif is_isbn(identifier):

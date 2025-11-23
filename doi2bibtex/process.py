@@ -17,6 +17,7 @@ from doi2bibtex.utils import (
     doi_to_url,
     latex_to_unicode,
     remove_accented_characters,
+    unescape_ampersand,
 )
 
 
@@ -195,12 +196,7 @@ def fix_broken_ampersand(bibtex_dict: dict) -> dict:
     """
 
     if "journal" in bibtex_dict:
-        bibtex_dict["journal"] = bibtex_dict["journal"].replace(
-            r"{\&}amp$\mathsemicolon$", r"\&"
-        )
-        bibtex_dict["journal"] = bibtex_dict["journal"].replace(
-            r"&amp;", r"\&"
-        )
+        bibtex_dict["journal"] = unescape_ampersand(bibtex_dict["journal"])
 
     return bibtex_dict
 
