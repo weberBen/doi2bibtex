@@ -7,10 +7,18 @@ Handle configuration.
 # -----------------------------------------------------------------------------
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 from warnings import warn
 
 import yaml
+
+
+# -----------------------------------------------------------------------------
+# CONSTANTS
+# -----------------------------------------------------------------------------
+
+# Default list of modules to load (used before config is available)
+DEFAULT_MODULES = ["plaincli", "fancycli", "doi", "arxiv", "isbn", "ads", "dblp"]
 
 
 # -----------------------------------------------------------------------------
@@ -19,7 +27,7 @@ import yaml
 
 class Configuration:
 
-    def __init__(self) -> None:
+    def __init__(self, config_path: Optional[str] = None) -> None:
 
         # Define the default configuration
         self.abbreviate_journal_names: bool = True
@@ -39,18 +47,22 @@ class Configuration:
         self.remove_url_if_doi: bool = True
         self.resolve_adsurl: bool = True
         self.update_arxiv_if_doi: bool = True
+        self.modules: List[str] = DEFAULT_MODULES.copy()
 
         # Load the configuration from the config file
-        self.load_from_yaml_file()
+        self.load_from_yaml_file(config_path)
 
     def __str__(self) -> str:
         settings = [f"  {k}={repr(v)},\n" for k, v in vars(self).items()]
         return "Configuration(\n" + "".join(sorted(settings)) + ")"
 
-    def load_from_yaml_file(self) -> None:
+    def load_from_yaml_file(self, config_path: Optional[str] = None) -> None:
 
-        # Define the expected path to the configuration file
-        file_path = Path.home() / ".doi2bibtex" / "config.yaml"
+        # Determine the path to the configuration file
+        if config_path:
+            file_path = Path(config_path)
+        else:
+            file_path = Path.home() / ".doi2bibtex" / "config.yaml"
 
         # If no configuration file exists, we are done
         if not file_path.exists():

@@ -11,12 +11,10 @@ from typing import Any
 
 import sys
 
-from rich.console import Console, Text
-from rich.syntax import Syntax
-
 from doi2bibtex import __version__
-from doi2bibtex.config import Configuration
-from doi2bibtex.resolve import resolve_identifier
+from doi2bibtex.config import Configuration, DEFAULT_MODULES
+from doi2bibtex.hooks import hooks
+from doi2bibtex.loader import discover_all_modules, instantiate_all_modules, get_discovered_modules
 
 
 # -----------------------------------------------------------------------------
@@ -26,86 +24,73 @@ from doi2bibtex.resolve import resolve_identifier
 def parse_cli_args(args: Any = None) -> Namespace:
     """
     Parse the command line arguments.
-    """
 
-    parser = ArgumentParser()
-    parser.add_argument(
-        "identifier",
-        metavar="IDENTIFIER",
-        nargs='?',
-        help="Identifier to resolve (DOI or arXiv ID).",
+    This is called AFTER modules are discovered (but not instantiated),
+    so that static add_cli_args methods can add their arguments.
+    """
+    parser = ArgumentParser(
+        prog="d2b",
+        description="Resolve DOIs, arXiv IDs, ISBNs, and ADS bibcodes to BibTeX entries.",
     )
-    parser.add_argument(
-        "--plain",
-        action="store_true",
-        help="Print result plain text. Useful for piping to other programs.",
-    )
+
+    # Call static add_cli_args on all discovered module classes
+    for module_class in get_discovered_modules().values():
+        if hasattr(module_class, "add_cli_args"):
+            module_class.add_cli_args(parser)
+
     parser.add_argument(
         "--version",
         action="store_true",
         help="Print the version number and exit.",
     )
+
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to a custom configuration file.",
+    )
+
     parsed_args = parser.parse_args(args)
     return parsed_args
 
 
-def plain(identifier: str, config: Configuration) -> None:
-    """
-    Print the result plain text.
-    """
-
-    # Get the BibTeX entry from the identifier
-    bibtex = resolve_identifier(identifier=identifier, config=config)
-
-    # Print the result
-    sys.stdout.write(bibtex + "\n")
-
-
-def fancy(identifier: str, config: Configuration) -> None:
-    """
-    Print the result as a fancy rich console output.
-    """
-
-    # Set up a rich Console for some fancy output
-    console = Console()
-    text = Text("\nd2b: Resolve DOIs and arXiv IDs to BibTeX\n", style="bold")
-    console.print(text)
-
-    # Get the BibTeX entry from the identifier
-    with console.status(f'Resolving identifier "{identifier}" ...'):
-        bibtex = resolve_identifier(identifier=identifier, config=config)
-
-    console.print(f'BibTeX entry for identifier "{identifier}":\n')
-
-    # Apply syntax highlighting
-    syntax = Syntax(
-        code=bibtex,
-        lexer="bibtex",
-        theme=config.pygments_theme,
-        word_wrap=True,
-    )
-
-    # Print the result
-    console.print(syntax)
-    console.print("\n")
-
-
 def main() -> None:  # pragma: no cover
     """
-    Get identifier from the command line and resolve it.
-    """
+    Main entry point for the CLI.
 
-    # Get command line arguments and load the configuration
+    Loading order:
+    1. Discover module classes (no instantiation)
+    2. Parse CLI arguments (using static methods on classes)
+    3. Load configuration (possibly from custom path via --config)
+    4. Instantiate modules with config (registers hooks)
+    5. Execute CLI hooks
+    """
+    # Phase 1: Discover module classes (no instantiation yet)
+    # Use default modules list - config not loaded yet
+    discover_all_modules(DEFAULT_MODULES)
+
+    # Phase 2: Parse CLI arguments
+    # Static add_cli_args methods are called on discovered classes
     args = parse_cli_args(sys.argv[1:])
-    config = Configuration()
 
     # Print the version number and exit if requested
     if args.version:
         print(__version__)
         sys.exit(0)
 
-    # Either print the result as plain text, or make it fancy
-    if args.plain:
-        plain(identifier=args.identifier, config=config)
-    else:
-        fancy(identifier=args.identifier, config=config)
+    # Phase 3: Load configuration (with optional custom path)
+    config = Configuration(config_path=args.config)
+
+    # Phase 4: Instantiate modules with config
+    # This registers their hooks
+    instantiate_all_modules(config)
+
+    # Phase 5: Execute CLI hooks until one handles the command
+    for hook in hooks["cli_exec"]:
+        if hook(args, config):
+            sys.exit(0)
+
+    # If no hook handled the command, show help
+    print("Error: No identifier provided. Use -h for help.", file=sys.stderr)
+    sys.exit(1)

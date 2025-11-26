@@ -6,13 +6,12 @@ Look up a BibTeX entry based on a DOI or arXiv ID.
 # IMPORTS
 # -----------------------------------------------------------------------------
 
+import re
+
 from bibtexparser.customization import splitname
 
-from doi2bibtex.ads import get_ads_bibcode_for_identifier
 from doi2bibtex.config import Configuration
 from doi2bibtex.constants import JOURNAL_ABBREVIATIONS
-from doi2bibtex.dblp import crossmatch_with_dblp
-from doi2bibtex.identify import is_arxiv_id
 from doi2bibtex.utils import (
     doi_to_url,
     latex_to_unicode,
@@ -23,6 +22,7 @@ from doi2bibtex.utils import (
 # -----------------------------------------------------------------------------
 # DEFINITIONS
 # -----------------------------------------------------------------------------
+
 
 def preprocess_identifier(identifier: str) -> str:
     """
@@ -51,21 +51,20 @@ def postprocess_bibtex(
 ) -> dict:
     """
     Post-process a BibTeX entry and apply a series of fixes and tweaks.
+
+    Note: Some postprocessing steps (resolve_adsurl, crossmatch_with_dblp)
+    have been moved to their respective modules and are handled via hooks.
     """
 
     # Fix broken ampersand in A&A journal name
     bibtex_dict = fix_broken_ampersand(bibtex_dict)
 
-    # Fix broken page numbers (e.g., "160â€“175" instead of "160--175")
+    # Fix broken page numbers (e.g., "160â€"175" instead of "160--175")
     bibtex_dict = fix_broken_pagenumbers(bibtex_dict)
 
     # Convert escaped LaTeX character to proper Unicode
     if config.convert_latex_chars:
         bibtex_dict = convert_latex_chars(bibtex_dict)
-
-    # Fix entry type and journal name for arXiv preprints
-    if config.fix_arxiv_entrytype:
-        bibtex_dict = fix_arxiv_entrytype(bibtex_dict, identifier)
 
     # Replace journal name with standard abbreviations
     if config.abbreviate_journal_names:
@@ -86,11 +85,6 @@ def postprocess_bibtex(
     if config.convert_month_to_number:
         bibtex_dict = convert_month_to_number(bibtex_dict)
 
-    # Resolve and add the ADS bibcode
-    # This is not unit tested, because it requires an ADS API token
-    if config.resolve_adsurl:  # pragma: no cover
-        bibtex_dict = resolve_adsurl(bibtex_dict, identifier)
-
     # Remove fields based on the entry type
     if config.remove_fields:
         bibtex_dict = remove_fields(bibtex_dict, config)
@@ -99,9 +93,8 @@ def postprocess_bibtex(
     if config.remove_url_if_doi:
         bibtex_dict = remove_url_if_doi(bibtex_dict)
 
-    # Try to crossmatch the entry with dblp to get venue information
-    if config.crossmatch_with_dblp:  # pragma: no cover
-        bibtex_dict = crossmatch_with_dblp(bibtex_dict, identifier)
+    # Note: resolve_adsurl and crossmatch_with_dblp are now handled
+    # by their respective modules via after_postprocess_bibtex hooks
 
     return bibtex_dict
 
@@ -181,17 +174,6 @@ def convert_month_to_number(bibtex_dict: dict) -> dict:
     return bibtex_dict
 
 
-def fix_arxiv_entrytype(bibtex_dict: dict, identifier: str) -> dict:
-    """
-    Fix the entry type for arXiv preprints.
-    """
-
-    if is_arxiv_id(identifier):
-        bibtex_dict["ENTRYTYPE"] = "article"
-
-    return bibtex_dict
-
-
 def fix_broken_ampersand(bibtex_dict: dict) -> dict:
     """
     Fix broken ampersand in A&A journal name that we get from CrossRef.
@@ -210,12 +192,17 @@ def fix_broken_ampersand(bibtex_dict: dict) -> dict:
 
 def fix_broken_pagenumbers(bibtex_dict: dict) -> dict:
     """
-    Fix broken pagenumbers (UTF-8 issue: "â€“" is an en-dash).
+    Fix broken pagenumbers (UTF-8 issue: broken en-dash encoding).
     """
 
     if "pages" in bibtex_dict:
+        # Fix broken UTF-8 encoding for en-dash (â€" is broken –)
         bibtex_dict["pages"] = bibtex_dict["pages"].replace(
-            "â€“", "--"
+            "\u00e2\u20ac\u201c", "--"
+        )
+        # Also fix proper en-dash
+        bibtex_dict["pages"] = bibtex_dict["pages"].replace(
+            "\u2013", "--"
         )
 
     return bibtex_dict
@@ -314,25 +301,6 @@ def remove_url_if_doi(bibtex_dict: dict) -> dict:
         and (bibtex_dict["url"] == doi_to_url(bibtex_dict["doi"]))
     ):
         del bibtex_dict["url"]
-
-    return bibtex_dict
-
-
-def resolve_adsurl(bibtex_dict: dict, identifier: str) -> dict:
-    """
-    Resolve the `adsurl` field for a given BibTeX entry.
-    """
-
-    # If the entry already has an `adsurl` field, return the original dict
-    if "adsurl" in bibtex_dict:
-        return bibtex_dict
-
-    # Resolve the ADS bibcode
-    bibcode = get_ads_bibcode_for_identifier(identifier)
-
-    # If we found a bibcode, construct the ADS URL and add it to the dict
-    if bibcode:
-        bibtex_dict["adsurl"] = f"https://adsabs.harvard.edu/abs/{bibcode}"
 
     return bibtex_dict
 
